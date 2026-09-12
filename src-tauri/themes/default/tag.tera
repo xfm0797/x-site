@@ -1,0 +1,17 @@
+{% extends "base.tera" %}
+
+{% block title %}标签: {{ tag }} - {{ site.title }}{% endblock %}
+
+{% block content %}
+<section class="tag-page">
+  <h1 class="page-title">标签: <span class="tag-name">{{ tag }}</span></h1>
+  <ul class="post-list-flat">
+    {% for post in posts %}
+    <li>
+      <time>{{ post.created_at }}</time>
+      <a href="{{ post.url }}">{{ post.title }}</a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

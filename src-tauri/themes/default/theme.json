@@ -1,0 +1,10 @@
+{
+  "name": "default",
+  "display_name": "Default",
+  "author": "XFM",
+  "description": "x-site 内置默认主题 — 简洁、清爽、响应式，支持代码高亮和所有页面类型。",
+  "version": "1.0.0",
+  "screenshot": "screenshot.png",
+  "homepage": "https://github.com/xfm0797/x-site",
+  "license": "MIT"
+}

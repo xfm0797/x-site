@@ -1,0 +1,69 @@
+# .cargo/config.toml
+# 全局 Cargo 构建配置：体积优化 + 编译提速
+# 文档：https://doc.rust-lang.org/cargo/reference/config.html
+#
+# 注意：opt-level / lto / codegen-units / panic / strip 等「编译策略」
+#       应在 Cargo.toml 的 [profile.release] 中配置（只影响最终 release 构建），
+#       不应放在 rustflags 里——rustflags 会作用于所有 crate 包括 build script，
+#       而 build script 不能开 LTO（会报 embed-bitcode=no 冲突）。
+
+[build]
+# 并行编译 jobs 数（默认=CPU 核数；CI 上可降低以减少内存峰值）
+# jobs = 4
+
+# ============================================================
+# 通用 rustflags（作用于所有 crate，不含 LTO/codegen-units）
+# ============================================================
+[target.'cfg(all())']
+rustflags = [
+    # 移除 panic 字符串中的文件路径与行号（配合 panic=abort 进一步瘦身）
+    "-C", "debuginfo=0",
+    # 生成位置无关代码（PIE，安全且现代平台要求）
+    "-C", "relocation-model=pic",
+]
+
+# ============================================================
+# 各平台链接器优化（去除未使用符号、折叠冗余段）
+# ============================================================
+
+# Windows MSVC
+[target.x86_64-pc-windows-msvc]
+rustflags = [
+    "-C", "link-arg=/DEBUG:NONE",          # 不生成 PDB
+    "-C", "link-arg=/OPT:REF",             # 移除未引用的函数/数据
+    "-C", "link-arg=/OPT:ICF",             # 折叠相同 COMDAT
+    "-C", "link-arg=/INCREMENTAL:NO",      # 关闭增量链接（减小体积）
+    "-C", "link-arg=/LTCG",                # 链接时代码生成
+]
+
+# Linux x86_64（可选：使用 lld 加速链接）
+# [target.x86_64-unknown-linux-gnu]
+# linker = "clang"
+# rustflags = [
+#     "-C", "link-arg=-fuse-ld=lld",
+#     "-C", "link-arg=-Wl,--gc-sections",    # GC 未使用 section
+#     "-C", "link-arg=-Wl,--icf=safe",       # 安全折叠相同段
+# ]
+
+# macOS x86_64
+[target.x86_64-apple-darwin]
+rustflags = [
+    "-C", "link-arg=-Wl,-dead_strip",
+    "-C", "link-arg=-Wl,-dead_strip_dylibs",
+]
+
+# macOS aarch64
+[target.aarch64-apple-darwin]
+rustflags = [
+    "-C", "link-arg=-Wl,-dead_strip",
+    "-C", "link-arg=-Wl,-dead_strip_dylibs",
+]
+
+# ============================================================
+# 注册表镜像（国内加速，可按需启用）
+# ============================================================
+# [source.crates-io]
+# replace-with = "rsproxy-sparse"
+#
+# [source.rsproxy-sparse]
+# registry = "sparse+https://rsproxy.cn/index/"

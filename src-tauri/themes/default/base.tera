@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="{% block description %}{{ site.description }}{% endblock %}">
+  <title>{% block title %}{{ site.title }}{% endblock %}</title>
+  <link rel="alternate" type="application/rss+xml" title="{{ site.title }}" href="/feed.xml">
+  <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <a href="/" class="logo">{{ site.title }}</a>
+      <nav class="nav">
+        <a href="/">首页</a>
+        <a href="/archive.html">归档</a>
+        <a href="/links.html">友链</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>&copy; {{ site.year }} {{ site.author }} · Powered by <a href="https://github.com/xfm0797/x-site">x-site</a></p>
+    </div>
+  </footer>
+</body>
+</html>

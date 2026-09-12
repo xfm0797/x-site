@@ -1,0 +1,142 @@
+/**
+ * 简体中文翻译（基准语言，其他语言以本文件为准）
+ */
+export default {
+  // 侧边栏导航
+  nav: {
+    posts: "文章",
+    newPost: "新建文章",
+    menus: "菜单",
+    tags: "标签",
+    themes: "主题",
+    settings: "设置",
+  },
+  // 文章列表
+  home: {
+    title: "文章",
+    newPost: "+ 新建文章",
+    loading: "加载中...",
+    empty: "暂无文章，点击「新建文章」开始",
+    published: "已发布",
+    draft: "草稿",
+  },
+  // 编辑器
+  editor: {
+    toolbar: {
+      h1: "一级标题",
+      h2: "二级标题",
+      bold: "加粗 (Ctrl/Cmd+B)",
+      italic: "斜体",
+      link: "插入链接",
+      image: "插入图片",
+      cover: "设为封面",
+      back: "返回",
+      saveDraft: "保存草稿",
+      publish: "发布",
+    },
+    linkPrompt: "输入链接 URL：",
+    meta: {
+      title: "文章信息",
+      titleLabel: "标题",
+      titlePlaceholder: "文章标题",
+      slugLabel: "Slug",
+      slugPlaceholder: "从标题自动生成",
+      categoryLabel: "分类",
+      categoryPlaceholder: "未分类",
+      tagsLabel: "标签",
+      tagsPlaceholder: "tag1, tag2, ...",
+      coverLabel: "封面图",
+      coverEmpty: "未设置",
+      coverSelect: "选择封面",
+      coverClear: "清除",
+      statusLabel: "状态",
+      statusDraft: "草稿",
+      statusPublished: "已发布",
+    },
+    status: {
+      idle: "已就绪",
+      pending: "编辑中...",
+      saving: "正在保存...",
+      saved: "已保存",
+      error: "保存失败：{msg}",
+    },
+  },
+  // 菜单管理
+  menus: {
+    title: "菜单",
+    hint: "拖拽排序 · 点击开关启用/禁用",
+    previewTitle: "站点导航预览",
+    itemsTitle: "菜单项",
+    builtin: "内置",
+    labelPlaceholder: "菜单标题",
+    urlPlaceholder: "/path 或 https://...",
+    labelTitle: "菜单标题",
+    urlTitle: "/about.html 或 https://example.com",
+    addTitle: "新增自定义菜单",
+    addBtn: "+ 添加",
+    noMenus: "无启用菜单",
+  },
+  // 标签
+  tags: {
+    title: "标签",
+    counter: "共 {tagCount} 个标签 · {postCount} 篇文章",
+    empty: "还没有标签。在文章中添加 tags 即可。",
+    sectionTitle: `“#{tag}” 下的文章`,
+    collapse: "收起",
+  },
+  // 主题
+  themes: {
+    title: "主题",
+    import: "+ 导入 ZIP 主题",
+    importing: "导入中...",
+    active: "使用中",
+    current: "当前主题：",
+    by: "by {author}",
+    loading: "加载中...",
+  },
+  // 设置
+  settings: {
+    title: "设置",
+    generate: {
+      title: "生成",
+      outputDir: "输出目录",
+      outputPlaceholder: "/path/to/output",
+      btn: "生成站点",
+      generating: "生成中...",
+      done: "站点生成完成！",
+      errorEmpty: "请填写输出目录",
+    },
+    deploy: {
+      title: "部署",
+      type: "类型",
+      local: "本地复制",
+      git: "Git 推送",
+      targetPath: "目标路径",
+      targetPlaceholder: "/path/to/deploy",
+      gitRepo: "Git 仓库 URL",
+      repoPlaceholder: "https://github.com/user/repo.git",
+      branch: "分支",
+      btn: "部署",
+      deploying: "部署中...",
+      done: "部署成功！",
+    },
+    preview: {
+      title: "预览",
+      start: "启动预览",
+      restart: "重启预览",
+      stop: "停止",
+      openBrowser: "在浏览器打开",
+      running: "运行中",
+      refresh: "⟳ 刷新",
+      errorEmpty: "请先填写输出目录并生成站点",
+      started: "预览服务已启动：{url}",
+      stopped: "预览服务已停止",
+      startFail: "预览启动失败：{err}",
+      stopFail: "停止失败：{err}",
+    },
+  },
+  // 通用
+  common: {
+    error: "错误：{msg}",
+  },
+} as const;

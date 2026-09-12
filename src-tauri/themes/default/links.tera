@@ -1,0 +1,23 @@
+{% extends "base.tera" %}
+
+{% block title %}友情链接 - {{ site.title }}{% endblock %}
+
+{% block content %}
+<section class="links-page">
+  <h1 class="page-title">友情链接</h1>
+  {% if site.links %}
+  <ul class="links-list">
+    {% for link in site.links %}
+    <li>
+      <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer">{{ link.name }}</a>
+      {% if link.description %}
+      <p class="link-desc">{{ link.description }}</p>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty">暂无友情链接</p>
+  {% endif %}
+</section>
+{% endblock %}

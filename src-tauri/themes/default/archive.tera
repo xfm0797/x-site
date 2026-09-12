@@ -1,0 +1,22 @@
+{% extends "base.tera" %}
+
+{% block title %}归档 - {{ site.title }}{% endblock %}
+
+{% block content %}
+<section class="archive">
+  <h1 class="archive-title">文章归档</h1>
+  {% for group in groups %}
+  <div class="archive-group">
+    <h2 class="archive-year">{{ group.0 }}</h2>
+    <ul class="archive-list">
+      {% for post in group.1 %}
+      <li>
+        <time>{{ post.created_at }}</time>
+        <a href="{{ post.url }}">{{ post.title }}</a>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+</section>
+{% endblock %}

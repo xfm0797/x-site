@@ -1,0 +1,263 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  # Tauri 更新签名密钥（从 Secrets 注入）
+  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+jobs:
+  # ============================================================
+  # 三平台并行构建
+  # ============================================================
+  build:
+    name: Build (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: Windows
+            target: x86_64-pc-windows-msvc
+            bundle_target: "msi,nsis"
+          - os: macos-latest
+            label: macOS
+            target: aarch64-apple-darwin
+            bundle_target: "dmg"
+          - os: ubuntu-22.04
+            label: Linux
+            target: x86_64-unknown-linux-gnu
+            bundle_target: "deb,appimage"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ---------- 系统依赖 ----------
+      - name: Install Linux deps
+        if: matrix.label == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      # ---------- 构建 ----------
+      - name: Build Tauri app
+        run: |
+          npm run tauri build -- --verbose --target ${{ matrix.target }}
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      # ---------- 收集产物 ----------
+      - name: Collect bundle artifacts
+        shell: bash
+        run: |
+          mkdir -p dist-artifacts
+          # Windows
+          if [ "${{ matrix.label }}" = "Windows" ]; then
+            find src-tauri/target/${{ matrix.target }}/release/bundle -type f \( -name "*.msi" -o -name "*.exe" -o -name "*.sig" \) -exec cp {} dist-artifacts/ \; 2>/dev/null || true
+          # macOS
+          elif [ "${{ matrix.label }}" = "macOS" ]; then
+            find src-tauri/target/${{ matrix.target }}/release/bundle -type f \( -name "*.dmg" -o -name "*.sig" \) -exec cp {} dist-artifacts/ \; 2>/dev/null || true
+          # Linux
+          elif [ "${{ matrix.label }}" = "Linux" ]; then
+            find src-tauri/target/${{ matrix.target }}/release/bundle -type f \( -name "*.deb" -o -name "*.AppImage" -o -name "*.sig" \) -exec cp {} dist-artifacts/ \; 2>/dev/null || true
+          fi
+          echo "=== Collected artifacts ==="
+          ls -lh dist-artifacts/ || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: x-site-${{ matrix.label }}
+          path: dist-artifacts/
+          if-no-files-found: error
+
+  # ============================================================
+  # 发布到 GitHub Releases（仅在 tag 推送时）
+  # ============================================================
+  release:
+    name: Create GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -lh all-artifacts/
+
+      - name: Generate latest.json (updater manifest)
+        run: |
+          cd all-artifacts
+          node <<'EOF'
+          const fs = require("fs");
+          const path = require("path");
+          const pkg = JSON.parse(fs.readFileSync("../package.json", "utf8"));
+          const version = pkg.version;
+          const files = fs.readdirSync(".");
+
+          // 找每个平台的主产物与其 .sig
+          function find(pattern) {
+            return files.find((f) => pattern.test(f));
+          }
+          function sigFor(file) {
+            const sig = file + ".sig";
+            return fs.existsSync(sig)
+              ? fs.readFileSync(sig, "utf8").trim()
+              : "";
+          }
+
+          const platforms = {};
+          const baseUrl = `https://github.com/xfm0797/x-site/releases/download/v${version}`;
+
+          // Windows MSI
+          const msi = find(/x-site_.*_x64(_en-US)?\.msi$/);
+          if (msi) {
+            platforms["windows-x86_64"] = {
+              signature: sigFor(msi),
+              url: `${baseUrl}/${msi}`,
+            };
+          }
+          // Windows NSIS
+          const nsis = find(/x-site_.*_x64-setup\.exe$/);
+          if (nsis) {
+            platforms["windows-x86_64-nsis"] = {
+              signature: sigFor(nsis),
+              url: `${baseUrl}/${nsis}`,
+            };
+          }
+          // macOS DMG (aarch64)
+          const dmgAarch = find(/x-site_.*_aarch64\.dmg$/);
+          if (dmgAarch) {
+            platforms["darwin-aarch64"] = {
+              signature: sigFor(dmgAarch),
+              url: `${baseUrl}/${dmgAarch}`,
+            };
+          }
+          // macOS DMG (x64)
+          const dmgX64 = find(/x-site_.*_x64\.dmg$/);
+          if (dmgX64) {
+            platforms["darwin-x86_64"] = {
+              signature: sigFor(dmgX64),
+              url: `${baseUrl}/${dmgX64}`,
+            };
+          }
+          // Linux AppImage
+          const appimage = find(/x-site_.*_amd64\.AppImage$/);
+          if (appimage) {
+            platforms["linux-x86_64"] = {
+              signature: sigFor(appimage),
+              url: `${baseUrl}/${appimage}`,
+            };
+          }
+          // Linux deb
+          const deb = find(/x-site_.*_amd64\.deb$/);
+          if (deb) {
+            platforms["linux-x86_64-deb"] = {
+              signature: sigFor(deb),
+              url: `${baseUrl}/${deb}`,
+            };
+          }
+
+          const manifest = {
+            version,
+            notes: `x-site v${version}`,
+            pub_date: new Date().toISOString(),
+            platforms,
+          };
+
+          fs.writeFileSync("latest.json", JSON.stringify(manifest, null, 2));
+          console.log("Generated latest.json:");
+          console.log(JSON.stringify(manifest, null, 2));
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: x-site ${{ github.ref_name }}
+          body: |
+            # x-site ${{ github.ref_name }}
+
+            Cross-platform static blog desktop client.
+
+            Author: XFM — https://github.com/xfm0797
+
+            ## Downloads
+
+            | Platform | File |
+            |----------|------|
+            | Windows (MSI) | `x-site_*_x64_en-US.msi` |
+            | Windows (NSIS) | `x-site_*_x64-setup.exe` |
+            | macOS (Apple Silicon) | `x-site_*_aarch64.dmg` |
+            | Linux (AppImage) | `x-site_*_amd64.AppImage` |
+            | Linux (deb) | `x-site_*_amd64.deb` |
+
+            ## Auto-update
+
+            This release includes `latest.json` for the in-app updater.
+          files: |
+            all-artifacts/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
