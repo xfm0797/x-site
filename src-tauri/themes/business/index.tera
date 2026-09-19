@@ -1,0 +1,89 @@
+{# 企业主题首页：Hero + 产品/案例卡片网格 + 服务特性 + 联系区 #}
+{% extends "base.tera" %}
+
+{% block title %}{{ site.title }} · {{ site.description }}{% endblock %}
+
+{% block content %}
+{# ===== Hero Banner ===== #}
+<section class="hero">
+  <div class="hero-content">
+    <h1 class="hero-title">{{ site.title }}</h1>
+    <p class="hero-subtitle">{{ site.description }}</p>
+    <div class="hero-actions">
+      <a href="#products" class="btn btn-primary">{{ "查看产品" }}</a>
+      <a href="#contact" class="btn btn-outline">{{ "联系我们" }}</a>
+    </div>
+  </div>
+</section>
+
+{# ===== 产品 / 案例卡片网格（取最新 published 文章作为产品列表） ===== #}
+<section class="products-section" id="products">
+  <h2 class="section-title">{{ "产品与案例" }}</h2>
+  <p class="section-subtitle">{{ "我们提供的产品与成功案例" }}</p>
+
+  <div class="product-grid">
+    {% for post in posts %}
+    <article class="product-card">
+      {% if post.cover %}
+      <a href="{{ post.url }}" class="product-cover">
+        <img src="/{{ post.cover }}" alt="{{ post.title }}" loading="lazy">
+      </a>
+      {% endif %}
+      <div class="product-body">
+        <h3 class="product-name">
+          <a href="{{ post.url }}">{{ post.title }}</a>
+        </h3>
+        {% if post.category %}
+        <span class="product-cat">{{ post.category }}</span>
+        {% endif %}
+        <p class="product-desc">{{ post.excerpt }}</p>
+        <a href="{{ post.url }}" class="product-link">{{ "了解详情 →" }}</a>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+
+  {# 分页 #}
+  {% if total_pages > 1 %}
+  <nav class="pagination">
+    {% if prev_url %}<a href="{{ prev_url }}" class="prev">{{ "上一页" }}</a>{% endif %}
+    <span class="page-info">{{ page }} / {{ total_pages }}</span>
+    {% if next_url %}<a href="{{ next_url }}" class="next">{{ "下一页" }}</a>{% endif %}
+  </nav>
+  {% endif %}
+</section>
+
+{# ===== 服务特性区（静态） ===== #}
+<section class="features-section">
+  <h2 class="section-title">{{ "为什么选择我们" }}</h2>
+  <div class="features-grid">
+    <div class="feature-item">
+      <div class="feature-icon">⚡</div>
+      <h3>{{ "高效交付" }}</h3>
+      <p>{{ "标准化流程，快速上线" }}</p>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon">🛡️</div>
+      <h3>{{ "品质保障" }}</h3>
+      <p>{{ "严格质检，稳定可靠" }}</p>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon">💬</div>
+      <h3>{{ "全程支持" }}</h3>
+      <p>{{ "一对一专属客服" }}</p>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon">📈</div>
+      <h3>{{ "持续迭代" }}</h3>
+      <p>{{ "按需扩展，长期维护" }}</p>
+    </div>
+  </div>
+</section>
+
+{# ===== 联系区 ===== #}
+<section class="contact-section">
+  <h2 class="section-title">{{ "联系我们" }}</h2>
+  <p class="section-subtitle">{{ "随时沟通您的需求" }}</p>
+  <a href="mailto:contact@example.com" class="btn btn-primary btn-lg">{{ "立即咨询" }}</a>
+</section>
+{% endblock %}

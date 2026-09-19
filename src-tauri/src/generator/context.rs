@@ -3,12 +3,14 @@
 //! 这些结构会被 serde 序列化后传给 Tera，在模板中通过
 //! `{{ site.title }}` / `{{ post.title }}` / `{{ posts }}` 等方式访问。
 
-use crate::models::post::{FriendLink, Post, SiteConfig};
+use crate::models::post::{
+    AdConfig, CommentsConfig, FriendLink, Post, SiteConfig,
+};
 use serde::Serialize;
 
 /// 站点级上下文（每次渲染都注入）
 ///
-/// 在 Tera 模板里访问：`{{ site.title }}`、`{{ site.author }}`、`{{ site.links }}`
+/// 在 Tera 模板里访问：`{{ site.title }}`、`{{ site.logo }}`、`{{ site.ads.header_html }}`
 #[derive(Debug, Clone, Serialize)]
 pub struct SiteContext {
     pub title: String,
@@ -20,6 +22,19 @@ pub struct SiteContext {
     pub links: Vec<FriendLink>,
     /// 当前年份（页脚用）
     pub year: i32,
+    // --- 通用设置（v0.2 扩展）---
+    /// Logo 相对路径（空则用文字标题）
+    pub logo: String,
+    /// 自定义页头 HTML
+    pub header_html: String,
+    /// 自定义页尾 HTML
+    pub footer_html: String,
+    /// 广告位
+    pub ads: AdConfig,
+    /// 评论系统
+    pub comments: CommentsConfig,
+    /// ICP 备案号
+    pub icp: String,
 }
 
 impl SiteContext {
@@ -33,6 +48,12 @@ impl SiteContext {
             posts_per_page: cfg.posts_per_page,
             links: cfg.links.clone(),
             year: chrono::Utc::now().year(),
+            logo: cfg.logo.clone(),
+            header_html: cfg.header_html.clone(),
+            footer_html: cfg.footer_html.clone(),
+            ads: cfg.ads.clone(),
+            comments: cfg.comments.clone(),
+            icp: cfg.icp.clone(),
         }
     }
 }

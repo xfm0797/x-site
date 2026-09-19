@@ -3,9 +3,13 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+pub mod platform;
+
 /// 部署静态站点，根据 config.type 选择部署方式
 /// - local: 复制到本地目录
 /// - git: 推送到 Git 远程仓库（GitHub Pages 等）
+/// - netlify: 通过 Netlify REST API 上传
+/// - vercel: 通过 Vercel REST API 上传
 pub async fn deploy(
     site_dir: &str,
     config: &HashMap<String, String>,
@@ -15,6 +19,8 @@ pub async fn deploy(
     match deploy_type {
         "local" => deploy_local(site_dir, config),
         "git" => deploy_git(site_dir, config).await,
+        "netlify" => platform::deploy_netlify(site_dir, config).await,
+        "vercel" => platform::deploy_vercel(site_dir, config).await,
         other => Err(format!("Unknown deploy type: {}", other)),
     }
 }

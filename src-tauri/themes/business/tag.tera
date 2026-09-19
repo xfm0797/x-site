@@ -1,0 +1,23 @@
+{# 企业主题标签页 #}
+{% extends "base.tera" %}
+{% block title %}{{ "标签" }}: {{ tag }} - {{ site.title }}{% endblock %}
+{% block content %}
+<section class="tag-section">
+  <h1 class="page-title">{{ "标签" }}: {{ tag }}</h1>
+  <div class="product-grid">
+    {% for post in posts %}
+    <article class="product-card">
+      {% if post.cover %}
+      <a href="{{ post.url }}" class="product-cover">
+        <img src="/{{ post.cover }}" alt="{{ post.title }}" loading="lazy">
+      </a>
+      {% endif %}
+      <div class="product-body">
+        <h3><a href="{{ post.url }}">{{ post.title }}</a></h3>
+        <p>{{ post.excerpt }}</p>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

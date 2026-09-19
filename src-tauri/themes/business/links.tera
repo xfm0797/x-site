@@ -1,0 +1,18 @@
+{# 企业主题友链页：合作伙伴展示 #}
+{% extends "base.tera" %}
+{% block title %}{{ "合作伙伴" }} - {{ site.title }}{% endblock %}
+{% block content %}
+<section class="links-section">
+  <h1 class="page-title">{{ "合作伙伴" }}</h1>
+  <p class="page-subtitle">{{ "与我们携手同行的伙伴" }}</p>
+  <div class="links-grid">
+    {% for link in site.links %}
+    <a href="{{ link.url }}" target="_blank" rel="noopener" class="link-card">
+      <div class="link-name">{{ link.name }}</div>
+      {% if link.description %}<p class="link-desc">{{ link.description }}</p>{% endif %}
+      <span class="link-arrow">→</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

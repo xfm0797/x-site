@@ -27,8 +27,10 @@ function openGitHub() {
       <RouterLink to="/editor">{{ t("nav.newPost") }}</RouterLink>
       <RouterLink to="/menus">{{ t("nav.menus") }}</RouterLink>
       <RouterLink to="/tags">{{ t("nav.tags") }}</RouterLink>
-      <RouterLink to="/themes" class="menu-section-end">{{ t("nav.themes") }}</RouterLink>
-      <RouterLink to="/settings">{{ t("nav.settings") }}</RouterLink>
+      <RouterLink to="/themes">{{ t("nav.themes") }}</RouterLink>
+      <RouterLink to="/remote" class="menu-section-end">{{ t("nav.remote") }}</RouterLink>
+      <RouterLink to="/preview" class="preview-section-end">{{ t("nav.preview") }}</RouterLink>
+      <RouterLink to="/sync">{{ t("nav.sync") }}</RouterLink>
 
       <!-- ============ 底部：语言切换 + 作者署名 ============ -->
       <div class="sidebar-footer">
@@ -100,6 +102,12 @@ body {
 }
 /* 分组分隔：把导航分成"内容管理 / 配置"两组 */
 .sidebar a.menu-section-end {
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 12px;
+}
+/* 预览/同步 与 底部语言切换之间的分隔 */
+.sidebar a.preview-section-end {
   margin-bottom: 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   padding-bottom: 12px;

@@ -199,6 +199,63 @@ pub fn import_theme(
 }
 
 // ============================================================
+// 通用主题设置：Logo / 页头 / 页尾 / 广告 / 评论系统
+// ============================================================
+
+/// 获取当前站点配置（前端用于通用设置面板）
+#[tauri::command]
+pub fn get_theme_settings(db: State<'_, DbState>) -> Result<SiteConfig, String> {
+    load_site_config(&db)
+}
+
+/// 保存站点配置（覆盖写回 site_config 表）
+#[tauri::command]
+pub fn save_theme_settings(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    config: SiteConfig,
+) -> Result<(), String> {
+    save_site_config(&db, &config)?;
+    let _ = app.emit("settings://changed", &config.theme);
+    Ok(())
+}
+
+/// 上传 Logo 图片到 assets 目录
+///
+/// 复制源文件到 `<app_data_dir>/assets/logo-<ts>.<ext>`，
+/// 返回相对路径 "assets/logo-xxx.png"，前端通过 convertFileSrc 展示
+#[tauri::command]
+pub fn upload_logo(
+    app: AppHandle,
+    src_path: String,
+) -> Result<String, String> {
+    use tauri::Manager;
+    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let assets_dir = app_data_dir.join("assets");
+    fs::create_dir_all(&assets_dir).map_err(|e| e.to_string())?;
+
+    let src = Path::new(&src_path);
+    if !src.exists() {
+        return Err(format!("File not found: {}", src_path));
+    }
+
+    // 推断扩展名
+    let ext = src
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("png")
+        .to_lowercase();
+    let ts = chrono::Utc::now().timestamp_millis();
+    let filename = format!("logo-{}.{}", ts, ext);
+    let dest = assets_dir.join(&filename);
+
+    fs::copy(src, &dest).map_err(|e| e.to_string())?;
+
+    // 返回相对路径（用于 SiteConfig.logo 字段）
+    Ok(format!("assets/{}", filename))
+}
+
+// ============================================================
 // 辅助函数（与 generator::load_site_config 类似，避免循环依赖）
 // ============================================================
 

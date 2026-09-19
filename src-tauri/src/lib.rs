@@ -41,6 +41,12 @@ pub fn run() {
                 extract_default_theme(&default_theme_dir)?;
             }
 
+            // 首次运行：把内置 business 主题释放到 themes/business/
+            let business_theme_dir = themes_dir.join("business");
+            if !business_theme_dir.exists() {
+                extract_business_theme(&business_theme_dir)?;
+            }
+
             // 注册 Tauri State
             app.manage(db_state);
             app.manage(ThemeState::new(themes_dir, active_theme));
@@ -57,6 +63,9 @@ pub fn run() {
             commands::theme::list_themes,
             commands::theme::apply_theme,
             commands::theme::import_theme,
+            commands::theme::get_theme_settings,
+            commands::theme::save_theme_settings,
+            commands::theme::upload_logo,
             commands::preview::start_preview,
             commands::preview::stop_preview,
             commands::preview::get_preview_port,
@@ -120,6 +129,46 @@ fn extract_default_theme(target: &std::path::Path) -> Result<(), String> {
 
     // screenshot 占位（实际项目可换成真实截图）
     // 这里用空文件占位，前端会 fallback 显示主题名
+    std::fs::write(target.join("screenshot.png"), []).ok();
+
+    Ok(())
+}
+
+/// 把编译期内联的 business 主题释放到目标目录（产品展示型企业主题）
+fn extract_business_theme(target: &std::path::Path) -> Result<(), String> {
+    std::fs::create_dir_all(target).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(target.join("assets").join("css"))
+        .map_err(|e| e.to_string())?;
+
+    // theme.json
+    std::fs::write(
+        target.join("theme.json"),
+        include_str!("../themes/business/theme.json"),
+    )
+    .map_err(|e| e.to_string())?;
+
+    // Tera 模板（business 主题含产品列表页 product.tera）
+    let templates = [
+        ("base.tera", include_str!("../themes/business/base.tera")),
+        ("post.tera", include_str!("../themes/business/post.tera")),
+        ("index.tera", include_str!("../themes/business/index.tera")),
+        ("archive.tera", include_str!("../themes/business/archive.tera")),
+        ("tag.tera", include_str!("../themes/business/tag.tera")),
+        ("category.tera", include_str!("../themes/business/category.tera")),
+        ("links.tera", include_str!("../themes/business/links.tera")),
+        ("product.tera", include_str!("../themes/business/product.tera")),
+    ];
+    for (name, content) in templates {
+        std::fs::write(target.join(name), content).map_err(|e| e.to_string())?;
+    }
+
+    // CSS
+    std::fs::write(
+        target.join("assets").join("css").join("style.css"),
+        include_str!("../themes/business/assets/css/style.css"),
+    )
+    .map_err(|e| e.to_string())?;
+
     std::fs::write(target.join("screenshot.png"), []).ok();
 
     Ok(())

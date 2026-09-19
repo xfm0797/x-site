@@ -26,9 +26,19 @@ const router = createRouter({
       component: () => import("../views/ThemeView.vue"),
     },
     {
-      path: "/settings",
-      name: "settings",
-      component: () => import("../views/SettingsView.vue"),
+      path: "/remote",
+      name: "remote",
+      component: () => import("../views/RemoteView.vue"),
+    },
+    {
+      path: "/preview",
+      name: "preview",
+      component: () => import("../views/PreviewView.vue"),
+    },
+    {
+      path: "/sync",
+      name: "sync",
+      component: () => import("../views/SyncView.vue"),
     },
   ],
 });

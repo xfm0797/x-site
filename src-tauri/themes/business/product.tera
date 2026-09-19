@@ -1,0 +1,25 @@
+{# 企业主题：产品列表页（独立于首页，可用于分类聚合） #}
+{% extends "base.tera" %}
+{% block title %}{{ "产品列表" }} - {{ site.title }}{% endblock %}
+{% block content %}
+<section class="products-page">
+  <h1 class="page-title">{{ "全部产品" }}</h1>
+  <div class="product-grid">
+    {% for post in posts %}
+    <article class="product-card">
+      {% if post.cover %}
+      <a href="{{ post.url }}" class="product-cover">
+        <img src="/{{ post.cover }}" alt="{{ post.title }}" loading="lazy">
+      </a>
+      {% endif %}
+      <div class="product-body">
+        <h3><a href="{{ post.url }}">{{ post.title }}</a></h3>
+        {% if post.category %}<span class="product-cat">{{ post.category }}</span>{% endif %}
+        <p>{{ post.excerpt }}</p>
+        <a href="{{ post.url }}" class="product-link">{{ "了解详情 →" }}</a>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

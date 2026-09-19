@@ -1,0 +1,10 @@
+{
+  "name": "business",
+  "display_name": "Business 企业主题",
+  "author": "XFM",
+  "description": "产品展示型企业主题：Hero Banner + 产品卡片网格 + 服务特性区 + 团队介绍 + 联系方式，适合中小企业的公司官网、产品发布页、品牌站。",
+  "version": "1.0.0",
+  "screenshot": "screenshot.png",
+  "homepage": "https://github.com/xfm0797/x-site",
+  "license": "MIT"
+}

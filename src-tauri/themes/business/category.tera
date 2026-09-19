@@ -1,0 +1,23 @@
+{# 企业主题分类页 #}
+{% extends "base.tera" %}
+{% block title %}{{ "分类" }}: {{ category }} - {{ site.title }}{% endblock %}
+{% block content %}
+<section class="category-section">
+  <h1 class="page-title">{{ "分类" }}: {{ category }}</h1>
+  <div class="product-grid">
+    {% for post in posts %}
+    <article class="product-card">
+      {% if post.cover %}
+      <a href="{{ post.url }}" class="product-cover">
+        <img src="/{{ post.cover }}" alt="{{ post.title }}" loading="lazy">
+      </a>
+      {% endif %}
+      <div class="product-body">
+        <h3><a href="{{ post.url }}">{{ post.title }}</a></h3>
+        <p>{{ post.excerpt }}</p>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

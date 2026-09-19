@@ -1,0 +1,126 @@
+{# 企业主题产品/案例详情页 #}
+{% extends "base.tera" %}
+
+{% block title %}{{ post.title }} - {{ site.title }}{% endblock %}
+
+{% block content %}
+<article class="post-detail">
+  {# 面包屑 #}
+  <nav class="breadcrumb">
+    <a href="/">{{ "首页" }}</a>
+    <span class="sep">/</span>
+    <a href="/#products">{{ "产品" }}</a>
+    <span class="sep">/</span>
+    <span class="current">{{ post.title }}</span>
+  </nav>
+
+  <header class="post-header">
+    <h1 class="post-title">{{ post.title }}</h1>
+    <div class="post-meta">
+      <time>{{ post.created_at }}</time>
+      {% if post.category %}
+      <span class="meta-cat">{{ post.category }}</span>
+      {% endif %}
+      {% if post.tags.len > 0 %}
+      <span class="meta-tags">
+        {% for tag in post.tags %}<a href="/tags/{{ tag | slugify }}.html" class="tag">#{{ tag }}</a>{% endfor %}
+      </span>
+      {% endif %}
+    </div>
+  </header>
+
+  {% if post.cover %}
+  <div class="post-cover">
+    <img src="/{{ post.cover }}" alt="{{ post.title }}">
+  </div>
+  {% endif %}
+
+  <div class="post-content">
+    {{ post.content | safe }}
+  </div>
+
+  {# 文章底部广告 #}
+  {% if site.ads.post_footer_html %}
+  <div class="ad-slot ad-post-footer">{{ site.ads.post_footer_html | safe }}</div>
+  {% endif %}
+</article>
+{% endblock %}
+
+{# 评论系统 #}
+{% block comments %}
+{% if site.comments.system != "none" %}
+<section class="comments-section">
+  <h3>{{ "评论" }}</h3>
+  {% if site.comments.system == "disqus" %}
+  <div id="disqus_thread"></div>
+  <script>
+    var disqus_config = function () {
+      this.page.url = "{{ site.url }}{{ post.url }}";
+      this.page.identifier = "{{ post.id }}";
+    };
+    (function() {
+      var d = document, s = d.createElement("script");
+      s.src = "https://{{ site.comments.params.shortname }}.disqus.com/embed.js";
+      s.setAttribute("data-timestamp", +new Date());
+      (d.head || d.body).appendChild(s);
+    })();
+  </script>
+  {% elif site.comments.system == "changyan" %}
+  <div id="SOHUCS"></div>
+  <script>
+    window.changyan = window.changyan || {};
+    window.changyan.api = {
+      appid: "{{ site.comments.params.appid }}",
+      conf: "{{ site.comments.params.conf }}"
+    };
+    (function() {
+    var s = document.createElement("script");
+    s.src = "https://changyan.sohu.com/upload/changyan.js";
+    document.head.appendChild(s);
+    })();
+  </script>
+  {% elif site.comments.system == "livere" %}
+  <div id="lv-container" data-id="city" data-uid="{{ site.comments.params.uid }}"></div>
+  <script>
+    (function(d, s) {
+      var j = d.createElement(s);
+      j.src = "https://cdn-city.livere.com/js/embed.dist.js";
+      j.async = true;
+      d.head.appendChild(j);
+    })(document, "script");
+  </script>
+  {% elif site.comments.system == "valine" %}
+  <div id="vcomments"></div>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  <script>
+    new Valine({
+      el: "#vcomments",
+      appId: "{{ site.comments.params.appid }}",
+      appKey: "{{ site.comments.params.appkey }}"
+    });
+  </script>
+  {% elif site.comments.system == "utterances" %}
+  <script src="https://utteranc.es/client.js"
+    repo="{{ site.comments.params.repo }}"
+    label="{{ site.comments.params.label }}"
+    theme="{{ site.comments.params.theme }}"
+    issue-term="pathname"
+    crossorigin="anonymous"
+    async>
+  </script>
+  {% elif site.comments.system == "giscus" %}
+  <script src="https://giscus.app/client.js"
+    data-repo="{{ site.comments.params.repo }}"
+    data-category="{{ site.comments.params.category }}"
+    data-mapping="{{ site.comments.params.mapping }}"
+    data-emit_metadata="0"
+    data-theme="light"
+    crossorigin="anonymous"
+    async>
+  </script>
+  {% elif site.comments.system == "custom" %}
+  {{ site.comments.params.html | safe }}
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

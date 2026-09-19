@@ -31,12 +31,20 @@ export interface PostMeta {
   updated_at: string;
 }
 
-export interface DeployConfig {
-  type: "local" | "git";
-  target?: string;
-  repo?: string;
-  branch?: string;
-  message?: string;
+/**
+ * 部署配置（与 Rust deploy() 的 HashMap<String, String> 对应）
+ * type 字段决定平台，其余为平台参数：
+ * - local:   { type: "local", target }
+ * - git:     { type: "git", repo, branch, message }
+ * - netlify: { type: "netlify", token, site_id }
+ * - vercel:  { type: "vercel", token, project_id, team_id? }
+ */
+export type DeployConfig = Record<string, string>;
+
+/** 部署目标（持久化在 SiteConfig.deploy_targets 中） */
+export interface DeployTarget {
+  name: string;
+  config: DeployConfig;
 }
 
 // ============================================================
@@ -144,6 +152,87 @@ export async function stopPreview(): Promise<void> {
 /** 获取当前预览端口（0 表示未启动） */
 export async function getPreviewPort(): Promise<number> {
   return invoke<number>("get_preview_port");
+}
+
+// ============================================================
+// 通用主题设置（Logo / 页头 / 页尾 / 广告 / 评论）
+// ============================================================
+
+export type CommentSystem =
+  | "none"
+  | "disqus"
+  | "changyan"
+  | "livere"
+  | "valine"
+  | "utterances"
+  | "giscus"
+  | "custom";
+
+export interface CommentsConfig {
+  system: CommentSystem;
+  /** 各系统参数键值对 */
+  params: Record<string, string>;
+}
+
+export interface AdConfig {
+  header_html: string;
+  sidebar_html: string;
+  post_footer_html: string;
+  site_footer_html: string;
+}
+
+export interface FriendLink {
+  name: string;
+  url: string;
+  description: string;
+}
+
+/** 站点配置（与 Rust SiteConfig 保持字段一致） */
+export interface SiteConfig {
+  title: string;
+  description: string;
+  author: string;
+  url: string;
+  theme: string;
+  posts_per_page: number;
+  links: FriendLink[];
+  // 通用设置
+  logo: string;
+  header_html: string;
+  footer_html: string;
+  ads: AdConfig;
+  comments: CommentsConfig;
+  icp: string;
+  /** 部署目标列表（多平台部署） */
+  deploy_targets: DeployTarget[];
+}
+
+/** 获取站点配置 */
+export async function getThemeSettings(): Promise<SiteConfig> {
+  return invoke<SiteConfig>("get_theme_settings");
+}
+
+/** 保存站点配置 */
+export async function saveThemeSettings(config: SiteConfig): Promise<void> {
+  return invoke<void>("save_theme_settings", { config });
+}
+
+/** 上传 Logo 图片到 assets 目录，返回相对路径 */
+export async function uploadLogo(srcPath: string): Promise<string> {
+  return invoke<string>("upload_logo", { srcPath });
+}
+
+/** 通过对话框选择并上传 Logo，返回 [相对路径, 原始文件名] 或 null */
+export async function pickAndUploadLogo(): Promise<[string, string] | null> {
+  const selected = await openDialog({
+    multiple: false,
+    filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "gif", "webp", "svg", "ico"] }],
+  });
+  if (!selected) return null;
+  const srcPath = selected as string;
+  const filename = srcPath.split(/[\\/]/).pop() ?? "logo";
+  const relPath = await uploadLogo(srcPath);
+  return [relPath, filename];
 }
 
 /** 生成 slug：中文转拼音首字母已超出范围，这里用 ASCII 化 + 连字符 */
