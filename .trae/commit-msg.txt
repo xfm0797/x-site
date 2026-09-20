@@ -1,0 +1,7 @@
+chore: 自动版本递增 — pre-commit 钩子每次提交 bump patch 版本
+
+- scripts/bump-version.mjs：读取 package.json 版本，patch+1，同步写入
+  package.json / tauri.conf.json / Cargo.toml，自动 git add
+- scripts/install-hooks.mjs：通过 npm prepare 安装 .git/hooks/pre-commit
+- package.json 新增 prepare 脚本，npm install 自动安装钩子
+- 同步三处版本号至 0.1.2（首次提交将自动 bump 至 0.1.3）
