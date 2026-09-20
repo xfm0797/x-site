@@ -55,7 +55,9 @@ pub fn load_theme(theme_dir: &Path) -> Result<Tera, String> {
 }
 
 /// 递归收集所有 .tera 文件
-/// name 是相对路径（去掉扩展名），如 "partials/header"
+///
+/// name 是完整文件名（含 .tera 扩展名），如 "base.tera"、"archive.tera"，
+/// 与模板内 `{% extends "base.tera" %}` 及 render_template("post.tera") 调用保持一致。
 fn collect_tera_files(
     dir: &Path,
     out: &mut Vec<(String, String)>,
@@ -69,27 +71,19 @@ fn collect_tera_files(
         if path.is_dir() {
             collect_tera_files(&path, out)?;
         } else if path.extension().and_then(|e| e.to_str()) == Some("tera") {
-            let rel = path
-                .strip_prefix(dir.parent().unwrap_or(Path::new("")))
-                .unwrap_or(&path)
-                .with_extension("")
-                .to_string_lossy()
-                .replace('\\', "/");
-            // 简化：直接用文件名（不含目录）作为模板名
+            // 用完整文件名（含 .tera）作为模板名，与 extends 指令引用一致
             let name = path
-                .file_stem()
+                .file_name()
                 .and_then(|s| s.to_str())
-                .unwrap_or("unknown")
+                .unwrap_or("unknown.tera")
                 .to_string();
             let content =
                 std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
-            out.push((name, content.clone()));
-            // 也注册带相对路径的版本（用于 partials）
-            if rel.contains('/') {
-                out.push((rel, content));
-            }
+            out.push((name, content));
         }
     }
+    // base.tera 必须最先加载（其他模板 extends "base.tera"）
+    out.sort_by_key(|(name, _)| name != "base.tera");
     Ok(())
 }
 
@@ -97,13 +91,14 @@ fn collect_tera_files(
 fn load_embedded_theme() -> Result<Tera, String> {
     let mut tera = Tera::default();
     let templates = [
+        // base 必须最先加载（其他模板 extends "base.tera"）
+        ("base", include_str!("../../themes/default/base.tera")),
         ("post", include_str!("../../themes/default/post.tera")),
         ("index", include_str!("../../themes/default/index.tera")),
         ("archive", include_str!("../../themes/default/archive.tera")),
         ("tag", include_str!("../../themes/default/tag.tera")),
         ("category", include_str!("../../themes/default/category.tera")),
         ("links", include_str!("../../themes/default/links.tera")),
-        ("base", include_str!("../../themes/default/base.tera")),
     ];
     for (name, content) in templates {
         tera
