@@ -55,6 +55,14 @@ export default defineConfig(() => ({
             return "vue";
           }
           if (id.includes("node_modules/@codemirror") || id.includes("node_modules/codemirror")) {
+            // language-data 通过动态 import 加载各语言包；若都并入 codemirror 主块，
+            // 会把全部语法一起打进首屏。仅核心包入主块，语言包保持按需拆分。
+            const isLazyLang =
+              id.includes("node_modules/@codemirror/lang-") &&
+              !id.includes("node_modules/@codemirror/lang-markdown");
+            if (isLazyLang || id.includes("node_modules/@codemirror/legacy-modes")) {
+              return undefined;
+            }
             return "codemirror";
           }
           if (id.includes("node_modules/markdown-it") || id.includes("node_modules/highlight.js")) {

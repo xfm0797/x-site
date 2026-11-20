@@ -10,7 +10,7 @@
  */
 import { ref, watch, onUpdated, onMounted } from "vue";
 import MarkdownIt from "markdown-it";
-import hljs from "highlight.js";
+import hljs from "highlight.js/lib/common";
 
 const props = defineProps<{
   source: string;
