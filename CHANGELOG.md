@@ -2,6 +2,12 @@
 
 本文件记录 x-site 的版本变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### Changed
+
+- **版本号改为手动升级**：移除 `npm prepare` 安装的 pre-commit 自动 bump 钩子（删除 `scripts/install-hooks.mjs`）。`scripts/bump-version.mjs` 改为手动命令 `npm run version:bump -- <patch|minor|major|x.y.z>`，一次同步 `package.json`、`package-lock.json`、`tauri.conf.json`、`Cargo.toml`、`Cargo.lock`（仅 `x-site` 包）；支持 `--dry-run`，并拒绝非法参数与降级。
+
 ## [0.1.13] - 2026-11-20
 
 首个纳入版本记录与 CI 门禁的发布版本。

@@ -8,7 +8,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "prepare": "node scripts/install-hooks.mjs"
+    "version:bump": "node scripts/bump-version.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.0",
