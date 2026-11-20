@@ -260,6 +260,30 @@ git push origin v0.1.0
 # CI 自动构建三平台安装包并发布 Release
 ```
 
+### 提交规范
+
+采用 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/)：
+
+```
+<type>(<scope>): <subject>
+
+<body 可选>
+```
+
+- `type`：`feat` / `fix` / `refactor` / `perf` / `test` / `docs` / `chore` / `ci` / `build`
+- `scope` 可选，如 `generator` / `deploy` / `editor` / `db` / `home`
+- `subject` 需说明具体改动，避免「分析项目代码」这类无法体现变更内容的消息
+- 一次提交只做一件事；先分步 `git add <路径>` 暂存，确认 `git diff --staged` 后再手动 `git commit`
+- 不使用 `git commit -a` 一次性收编全部改动，也不通过钩子自动改写版本号或自动提交
+
+示例：
+
+```
+feat(home): 首页支持按标题/标签搜索与状态筛选
+fix(deploy): Git 部署在 HEAD 未变化时跳过 push
+chore(deps): 移除未使用的 Tauri 插件依赖
+```
+
 ---
 
 ## 🌐 多语言
