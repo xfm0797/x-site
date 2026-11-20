@@ -4,8 +4,11 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-20
+
 ### Added
 
+- **Markdown 批量导入**：首页支持一次选择多个本地 Markdown 文件导入为文章（默认草稿），解析可选 frontmatter（title / slug / date / category / tags / status）；无 frontmatter 时取正文首个 `# 标题` 或文件名，slug 自动规范化并与站内已有文章去重，兼容 UTF-8 BOM。
 - **导航菜单后端化**：新增 `get_menus` / `save_menus` 命令与 `SiteConfig.menus` 字段，内置 default / business 主题渲染自定义导航；菜单管理页支持预览与排序。
 - **部署目标独立保存**：新增 `save_deploy_targets` 命令，远程页只回写 `deploy_targets`。
 - **输出目录持久化**：新增 `get_output_dir` / `save_output_dir` 命令与 `SiteConfig.output_dir` 字段，预览/同步页共享目录并支持原生目录选择。
