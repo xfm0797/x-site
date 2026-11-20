@@ -4,9 +4,27 @@
 
 ## [Unreleased]
 
+### Added
+
+- **导航菜单后端化**：新增 `get_menus` / `save_menus` 命令与 `SiteConfig.menus` 字段，内置 default / business 主题渲染自定义导航；菜单管理页支持预览与排序。
+- **部署目标独立保存**：新增 `save_deploy_targets` 命令，远程页只回写 `deploy_targets`。
+- **输出目录持久化**：新增 `get_output_dir` / `save_output_dir` 命令与 `SiteConfig.output_dir` 字段，预览/同步页共享目录并支持原生目录选择。
+- **同步进度可视化**：同步页监听 `generate://progress` 与 `deploy://progress`，展示生成及当前部署目标的实时进度。
+- **删除二次确认**：菜单项与部署目标删除前弹出确认。
+- **前端测试**：新增 Vitest，覆盖 post store 自动保存状态机。
+
 ### Changed
 
+- **增量生成感知站点配置**：`.gen_state.json` 增加站点配置指纹，标题或菜单变化时重渲染此前跳过的文章页。
+- **主题设置保存不再覆盖**：`save_theme_settings` 保留库中已有的 `menus`、`deploy_targets`、`output_dir`。
+- **生成命令异步化**：`generate_site` 改为 `async` + `spawn_blocking`，避免阻塞 Tauri 主线程。
+- **文案三语化**：主题页、同步页、远程页与菜单页的提示、加载失败、部署类型等文案全部接入 i18n。
 - **版本号改为手动升级**：移除 `npm prepare` 安装的 pre-commit 自动 bump 钩子（删除 `scripts/install-hooks.mjs`）。`scripts/bump-version.mjs` 改为手动命令 `npm run version:bump -- <patch|minor|major|x.y.z>`，一次同步 `package.json`、`package-lock.json`、`tauri.conf.json`、`Cargo.toml`、`Cargo.lock`（仅 `x-site` 包）；支持 `--dry-run`，并拒绝非法参数与降级。
+
+### Fixed
+
+- 修复关闭窗口时最后一次自动保存可能丢失：`onCloseRequested` 先落盘再销毁窗口。
+- 修复主题导入未限制解压量且直接覆盖旧目录：改为临时目录解压、限额校验后原子替换，失败保留旧主题。
 
 ## [0.1.13] - 2026-11-20
 

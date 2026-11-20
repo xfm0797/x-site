@@ -1,6 +1,6 @@
 # x-site
 
-> 跨平台静态博客桌面客户端 · 类 Gridea · v0.1.0
+> 跨平台静态博客桌面客户端 · 类 Gridea · v0.1.13
 >
 > 作者：**XFM** · <https://github.com/xfm0797>
 
@@ -15,7 +15,7 @@
 ### 内容管理
 - **文章 CRUD** — 创建/编辑/删除，草稿与已发布双状态
 - **Markdown 编辑器** — CodeMirror 6 语法高亮 + markdown-it 实时预览 + highlight.js 代码高亮
-- **自动保存** — 编辑停顿 1s 防抖写入 SQLite，状态栏显示「已保存」
+- **自动保存** — 编辑停顿 1s 防抖写入 SQLite，状态栏显示「已保存」；关闭窗口前会等待最后一次保存落盘
 - **拖拽图片** — 从系统拖入图片自动复制到资源目录并插入 Markdown 相对路径
 - **元数据面板** — 标题、Slug、分类、标签、封面图、发布状态
 - **搜索与筛选** — 首页按标题/Slug/标签/分类搜索，按发布状态过滤，支持更新时间/创建时间/标题排序
@@ -25,6 +25,7 @@
 - **pulldown-cmark** — Markdown → HTML，支持表格/脚注/任务列表/删除线
 - **syntect 代码高亮** — 内嵌 base16-ocean.dark 主题，无需前端 CSS
 - **rayon 并发渲染** — 多文章并行生成，进度通过 Tauri 事件实时推送
+- **增量生成** — `.gen_state.json` 记录主题、文章内容哈希与站点配置指纹；未变更文章跳过渲染，主题/菜单/站点标题变化时自动重渲染
 - **生成的产物**：
   - 首页（分页，`posts_per_page` 可配）
   - 文章页 `posts/<slug>.html`
@@ -57,7 +58,8 @@
 - **Git Push** — 推送到 GitHub Pages / 任意 Git 仓库（自定义分支；HEAD 未变化时自动跳过推送）
 - **Netlify** — 通过 Netlify API 部署（需 `token` + `site_id`）
 - **Vercel** — 通过 Vercel API 部署（需 `token` + `project_id`，可选 `team_id`）
-- **多目标同步** — 「同步」页可依次执行生成 + 部署全部目标，进度通过 `deploy://progress` 事件推送
+- **多目标同步** — 「同步」页依次执行生成 + 部署全部目标，生成与每个目标的部署进度均实时展示
+- **输出目录持久化** — 预览/同步页共享同一输出目录，支持原生目录选择并记住上次路径
 
 ### 本地预览
 - Rust 端 `axum` 静态文件服务，端口自动扫描（40000+）
@@ -65,7 +67,7 @@
 - 修改文章 → 重新生成 → 一键刷新
 
 ### 其他
-- **菜单管理** — 内置项（首页/归档/友链）开关 + 自定义项 + 拖拽排序
+- **菜单管理** — 内置项（首页/归档/友链）开关 + 自定义项 + 拖拽排序，写入站点配置并由内置主题渲染导航
 - **标签聚合** — 标签云按文章数渐变字号，点击展开文章列表
 - **多语言** — 简体中文 / 繁體中文 / English，随系统语言自动选择
 - **自动更新** — tauri-plugin-updater + GitHub Releases 签名分发
@@ -105,8 +107,10 @@ x-site/
 │   │   ├── EditorView.vue        # 三栏编辑器（工具栏+编辑+预览+元数据）
 │   │   ├── MenusView.vue         # 菜单管理
 │   │   ├── TagsView.vue          # 标签云
-│   │   ├── ThemeView.vue         # 主题管理
-│   │   └── SettingsView.vue      # 生成/部署/预览
+│   │   ├── ThemeView.vue         # 主题管理 + 站点设置
+│   │   ├── PreviewView.vue       # 本地预览
+│   │   ├── SyncView.vue          # 生成 + 部署全部目标（进度可视化）
+│   │   └── RemoteView.vue        # 远程部署目标管理
 │   ├── stores/post.ts            # Pinia store（current + 防抖自动保存）
 │   ├── i18n/                     # 多语言
 │   │   ├── index.ts              # useI18n() + t() + setLocale()
@@ -122,7 +126,8 @@ x-site/
 │   │   │   ├── posts.rs          # load_posts / save_post / import_image
 │   │   │   ├── generate.rs       # generate_site
 │   │   │   ├── deploy.rs         # deploy
-│   │   │   ├── theme.rs          # list_themes / apply_theme / import_theme
+│   │   │   ├── theme.rs          # list_themes / apply_theme / import_theme / 站点设置
+│   │   │   ├── menus.rs          # get_menus / save_menus
 │   │   │   └── preview.rs        # start_preview / stop_preview
 │   │   ├── db/mod.rs             # SQLite 连接 + WAL + 建表迁移
 │   │   ├── models/
@@ -316,7 +321,10 @@ chore(deps): 移除未使用的 Tauri 插件依赖
 | `list_themes` | 列出所有主题 |
 | `apply_theme` | 切换当前主题 |
 | `import_theme` | 导入 ZIP 主题包 |
-| `get_theme_settings` / `save_theme_settings` | 读取 / 保存站点配置 |
+| `get_theme_settings` / `save_theme_settings` | 读取 / 保存站点配置（保留菜单、部署目标与输出目录） |
+| `get_menus` / `save_menus` | 读取 / 保存导航菜单 |
+| `save_deploy_targets` | 仅保存部署目标，避免覆盖其他配置 |
+| `get_output_dir` / `save_output_dir` | 读取 / 保存输出目录 |
 | `upload_logo` | 上传 Logo 到 assets 目录 |
 | `start_preview` | 启动本地 HTTP 预览服务 |
 | `stop_preview` | 停止预览服务 |
