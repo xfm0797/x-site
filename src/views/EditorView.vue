@@ -19,6 +19,8 @@ import { slugify, pickAndImportImage, type Post } from "../api/tauri";
 import { useI18n } from "../i18n";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { appDataDir } from "@tauri-apps/api/path";
+import { getCurrentWindow, type CloseRequestedEvent } from "@tauri-apps/api/window";
+import type { UnlistenFn } from "@tauri-apps/api/event";
 
 const { t } = useI18n();
 
@@ -263,14 +265,45 @@ const previewSource = computed(() => {
 // 离开前保存（用户切走标签 / 关闭窗口时）
 // ============================================================
 function beforeUnload() {
-  // 同步触发保存（不等 await）
+  // 浏览器环境兜底：同步触发保存（不等 await）
   void store.saveNow();
 }
+
+// Tauri 关窗：拦截关闭请求，等自动保存冲刷落盘后再真正销毁窗口。
+// 仅靠 beforeunload 中的 void saveNow() 无法等待异步写库，会丢掉最后 1 秒的编辑。
+let unlistenCloseRequested: UnlistenFn | null = null;
+let closingWindow = false;
+
+function registerCloseGuard() {
+  void (async () => {
+    try {
+      const win = getCurrentWindow();
+      unlistenCloseRequested = await win.onCloseRequested(
+        async (event: CloseRequestedEvent) => {
+          if (closingWindow) return;
+          event.preventDefault();
+          closingWindow = true;
+          try {
+            await store.saveNow();
+          } finally {
+            await win.destroy();
+          }
+        },
+      );
+    } catch {
+      // 浏览器 / 测试环境没有 Tauri 窗口，忽略
+    }
+  })();
+}
+
 onMounted(() => {
   window.addEventListener("beforeunload", beforeUnload);
+  registerCloseGuard();
 });
 onBeforeUnmount(() => {
   window.removeEventListener("beforeunload", beforeUnload);
+  unlistenCloseRequested?.();
+  unlistenCloseRequested = null;
 });
 // 路由切换（侧边栏导航等）前等待保存落盘，避免防抖未触发时丢稿
 onBeforeRouteLeave(async () => {
