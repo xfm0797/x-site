@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
+    "test": "vitest run",
     "tauri": "tauri",
     "version:bump": "node scripts/bump-version.mjs"
   },
@@ -34,9 +35,11 @@
     "@types/markdown-it": "^14.2.0",
     "@vitejs/plugin-vue": "^6.0.7",
     "esbuild": "^0.28.2",
+    "jsdom": "^29.1.1",
     "typescript": "~6.0.3",
     "vite": "^8.0.16",
     "vite-plugin-compression": "^0.5.1",
+    "vitest": "^5.1.1",
     "vue-tsc": "^3.3.5"
   }
 }
