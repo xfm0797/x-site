@@ -197,6 +197,16 @@ export interface FriendLink {
   description: string;
 }
 
+/** 站点导航菜单项（与 Rust MenuItem 字段一致） */
+export interface MenuItem {
+  label: string;
+  url: string;
+  /** 内置项（首页/归档/友链），不可修改 URL */
+  builtin: boolean;
+  /** 是否在导航中显示 */
+  enabled: boolean;
+}
+
 /** 站点配置（与 Rust SiteConfig 保持字段一致） */
 export interface SiteConfig {
   title: string;
@@ -206,6 +216,8 @@ export interface SiteConfig {
   theme: string;
   posts_per_page: number;
   links: FriendLink[];
+  /** 站点导航菜单（顺序即展示顺序） */
+  menus: MenuItem[];
   // 通用设置
   logo: string;
   header_html: string;
@@ -225,6 +237,16 @@ export async function getThemeSettings(): Promise<SiteConfig> {
 /** 保存站点配置 */
 export async function saveThemeSettings(config: SiteConfig): Promise<void> {
   return invoke<void>("save_theme_settings", { config });
+}
+
+/** 获取站点导航菜单 */
+export async function getMenus(): Promise<MenuItem[]> {
+  return invoke<MenuItem[]>("get_menus");
+}
+
+/** 保存站点导航菜单 */
+export async function saveMenus(menus: MenuItem[]): Promise<void> {
+  return invoke<void>("save_menus", { menus });
 }
 
 /** 上传 Logo 图片到 assets 目录，返回相对路径 */

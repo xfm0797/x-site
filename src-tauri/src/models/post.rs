@@ -118,6 +118,51 @@ pub struct DeployTarget {
     pub config: std::collections::HashMap<String, String>,
 }
 
+/// 站点导航菜单项（保存在 SiteConfig.menus 中）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MenuItem {
+    /// 显示标题
+    #[serde(default)]
+    pub label: String,
+    /// 链接地址（相对路径或绝对 URL）
+    #[serde(default)]
+    pub url: String,
+    /// 内置项（首页/归档/友链），前端不允许修改 URL
+    #[serde(default)]
+    pub builtin: bool,
+    /// 是否在导航中显示
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+/// 内置默认导航（旧配置缺少 menus 字段时使用，保持既有站点导航不变）
+fn default_menus() -> Vec<MenuItem> {
+    vec![
+        MenuItem {
+            label: "首页".into(),
+            url: "/".into(),
+            builtin: true,
+            enabled: true,
+        },
+        MenuItem {
+            label: "归档".into(),
+            url: "/archive.html".into(),
+            builtin: true,
+            enabled: true,
+        },
+        MenuItem {
+            label: "友情链接".into(),
+            url: "/links.html".into(),
+            builtin: true,
+            enabled: true,
+        },
+    ]
+}
+
 /// 站点配置（保存在 site_config 表的 "main" key 中，以 TOML 序列化）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SiteConfig {
@@ -132,6 +177,9 @@ pub struct SiteConfig {
     pub posts_per_page: usize,
     /// 友情链接列表
     pub links: Vec<FriendLink>,
+    /// 站点导航菜单（顺序即展示顺序）
+    #[serde(default = "default_menus")]
+    pub menus: Vec<MenuItem>,
     // ----------------------------------------------------------
     // 通用主题设置项（v0.2 扩展，全部带 default 兼容旧数据）
     // ----------------------------------------------------------
@@ -168,6 +216,7 @@ impl Default for SiteConfig {
             theme: "default".into(),
             posts_per_page: 10,
             links: Vec::new(),
+            menus: default_menus(),
             logo: String::new(),
             header_html: String::new(),
             footer_html: String::new(),

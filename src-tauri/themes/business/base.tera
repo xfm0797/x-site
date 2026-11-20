@@ -25,10 +25,8 @@
         {% endif %}
       </a>
       <nav class="main-nav">
-        <a href="/">{{ "首页" }}</a>
-        <a href="/archive.html">{{ "案例" }}</a>
-        <a href="/links.html">{{ "合作伙伴" }}</a>
-        <a href="/#contact">{{ "联系我们" }}</a>
+        {% for m in site.menus %}{% if m.enabled %}<a href="{{ m.url }}">{{ m.label }}</a>
+        {% endif %}{% endfor %}
       </nav>
     </div>
   </header>
@@ -63,9 +61,8 @@
       <div class="footer-col">
         <h4>{{ "快速导航" }}</h4>
         <ul>
-          <li><a href="/">{{ "首页" }}</a></li>
-          <li><a href="/archive.html">{{ "案例" }}</a></li>
-          <li><a href="/links.html">{{ "合作伙伴" }}</a></li>
+          {% for m in site.menus %}{% if m.enabled %}<li><a href="{{ m.url }}">{{ m.label }}</a></li>
+          {% endif %}{% endfor %}
         </ul>
       </div>
       {% if site.links.len > 0 %}

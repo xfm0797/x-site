@@ -109,6 +109,7 @@ const form = reactive<SiteConfig>({
   theme: "default",
   posts_per_page: 10,
   links: [],
+  menus: [],
   logo: "",
   header_html: "",
   footer_html: "",

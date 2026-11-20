@@ -9,57 +9,111 @@
  * - 拖拽排序（HTML5 draggable）
  * - 顶部"预览"区显示站点导航栏最终效果
  *
- * 存储：复用 site_config 表中的 menus 字段（前端调用 save_menus 命令），
- * Rust 端 site_config.menus: Vec<MenuItem> 需要扩展，当前实现仅前端状态演示，
- * 后续接入 Rust 后端即可持久化。
+ * 存储：SiteConfig.menus（Rust 端 get_menus / save_menus 持久化），
+ * 生成站点时注入模板 `site.menus` 渲染导航。旧版本数据仅存 localStorage，
+ * 首次进入且后端可用时自动迁移。
  */
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { useI18n } from "../i18n";
+import { getMenus, saveMenus, type MenuItem } from "../api/tauri";
 
 const { t } = useI18n();
 
-interface MenuItem {
-  /** 显示标题 */
-  label: string;
-  /** 链接地址（相对路径或绝对 URL） */
-  url: string;
-  /** 是否内置项（首页/归档/友链等，不可删除 URL） */
-  builtin?: boolean;
-  /** 是否启用 */
-  enabled: boolean;
-}
-
-/** 内置菜单项（对应已生成的页面） */
+/** 后端不可用（浏览器开发环境）时的内置回退项 */
 const defaultMenus: MenuItem[] = [
   { label: "首页", url: "/", builtin: true, enabled: true },
   { label: "归档", url: "/archive.html", builtin: true, enabled: true },
-  { label: "友情链接", url: "/links.html", builtin: true, enabled: false },
+  { label: "友情链接", url: "/links.html", builtin: true, enabled: true },
 ];
 
-const menus = ref<MenuItem[]>(loadFromStorage() ?? defaultMenus);
+const menus = ref<MenuItem[]>([]);
 const newLabel = ref("");
 const newUrl = ref("");
 const message = ref("");
+/** 后端是否可用（不可用时退回 localStorage，仅用于浏览器调试） */
+const backendAvailable = ref(true);
 
 const STORAGE_KEY = "x-site:menus";
+const SAVE_DEBOUNCE_MS = 400;
+
+let saveTimer: number | null = null;
+let saveSeq = 0;
 
 function loadFromStorage(): MenuItem[] | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
   } catch {
     return null;
   }
 }
 
-function persist() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(menus.value));
+function clearSaveTimer() {
+  if (saveTimer !== null) {
+    window.clearTimeout(saveTimer);
+    saveTimer = null;
+  }
 }
 
-onMounted(() => {
-  if (!localStorage.getItem(STORAGE_KEY)) {
-    persist();
+/** 写入后端（不可用时写 localStorage） */
+async function flush() {
+  clearSaveTimer();
+  if (!backendAvailable.value) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(menus.value));
+    return;
+  }
+  const seq = ++saveSeq;
+  try {
+    await saveMenus(menus.value);
+    if (seq !== saveSeq) return;
+    message.value = "已保存";
+    setTimeout(() => {
+      if (seq === saveSeq) message.value = "";
+    }, 2000);
+  } catch (e: any) {
+    if (seq !== saveSeq) return;
+    message.value = `保存失败：${String(e?.message ?? e)}`;
+  }
+}
+
+/** 防抖持久化：连续输入时只提交最后一次 */
+function persist(immediate = false) {
+  clearSaveTimer();
+  if (immediate) {
+    void flush();
+    return;
+  }
+  saveTimer = window.setTimeout(() => {
+    saveTimer = null;
+    void flush();
+  }, SAVE_DEBOUNCE_MS);
+}
+
+onMounted(async () => {
+  const stored = loadFromStorage();
+  try {
+    const remote = await getMenus();
+    backendAvailable.value = true;
+    if (stored && stored.length) {
+      // 迁移旧版纯前端数据到后端，成功后删除本地副本
+      await saveMenus(stored);
+      localStorage.removeItem(STORAGE_KEY);
+      menus.value = stored;
+    } else {
+      menus.value = remote;
+    }
+  } catch {
+    backendAvailable.value = false;
+    menus.value = stored ?? defaultMenus;
+  }
+});
+
+onBeforeUnmount(() => {
+  if (saveTimer !== null) {
+    clearSaveTimer();
+    void flush();
   }
 });
 
@@ -74,22 +128,20 @@ function addMenu() {
     message.value = "请填写标题和链接";
     return;
   }
-  menus.value.push({ label, url, enabled: true });
+  menus.value.push({ label, url, builtin: false, enabled: true });
   newLabel.value = "";
   newUrl.value = "";
-  persist();
-  message.value = "已添加";
-  setTimeout(() => (message.value = ""), 2000);
+  persist(true);
 }
 
 function removeMenu(index: number) {
   menus.value.splice(index, 1);
-  persist();
+  persist(true);
 }
 
 function toggleEnabled(index: number) {
   menus.value[index].enabled = !menus.value[index].enabled;
-  persist();
+  persist(true);
 }
 
 function updateLabel(index: number, label: string) {

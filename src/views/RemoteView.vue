@@ -23,7 +23,7 @@ const message = ref("");
 // 完整 SiteConfig（保存时整体回写）
 const config = reactive<SiteConfig>({
   title: "", description: "", author: "", url: "",
-  theme: "default", posts_per_page: 10, links: [],
+  theme: "default", posts_per_page: 10, links: [], menus: [],
   logo: "", header_html: "", footer_html: "",
   ads: { header_html: "", sidebar_html: "", post_footer_html: "", site_footer_html: "" },
   comments: { system: "none", params: {} },

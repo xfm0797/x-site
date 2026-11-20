@@ -3,7 +3,7 @@
 //! 这些结构会被 serde 序列化后传给 Tera，在模板中通过
 //! `{{ site.title }}` / `{{ post.title }}` / `{{ posts }}` 等方式访问。
 
-use crate::models::post::{AdConfig, CommentsConfig, FriendLink, Post, SiteConfig};
+use crate::models::post::{AdConfig, CommentsConfig, FriendLink, MenuItem, Post, SiteConfig};
 use serde::Serialize;
 
 /// 站点级上下文（每次渲染都注入）
@@ -18,6 +18,8 @@ pub struct SiteContext {
     pub theme: String,
     pub posts_per_page: usize,
     pub links: Vec<FriendLink>,
+    /// 站点导航（顺序即展示顺序）
+    pub menus: Vec<MenuItem>,
     /// 当前年份（页脚用）
     pub year: i32,
     // --- 通用设置（v0.2 扩展）---
@@ -45,6 +47,7 @@ impl SiteContext {
             theme: cfg.theme.clone(),
             posts_per_page: cfg.posts_per_page,
             links: cfg.links.clone(),
+            menus: cfg.menus.clone(),
             year: chrono::Utc::now().year(),
             logo: cfg.logo.clone(),
             header_html: cfg.header_html.clone(),

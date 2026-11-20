@@ -78,6 +78,8 @@ pub fn run() {
             commands::theme::import_theme,
             commands::theme::get_theme_settings,
             commands::theme::save_theme_settings,
+            commands::menus::get_menus,
+            commands::menus::save_menus,
             commands::theme::upload_logo,
             commands::preview::start_preview,
             commands::preview::stop_preview,
