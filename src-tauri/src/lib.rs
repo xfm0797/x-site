@@ -71,6 +71,7 @@ pub fn run() {
             commands::posts::delete_post,
             commands::posts::save_post,
             commands::posts::import_image,
+            commands::posts::import_markdown,
             commands::generate::generate_site,
             commands::generate::get_output_dir,
             commands::generate::save_output_dir,
