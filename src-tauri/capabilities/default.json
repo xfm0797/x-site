@@ -6,7 +6,6 @@
   "permissions": [
     "core:default",
     "opener:default",
-    "sql:default",
     "dialog:default",
     "fs:default",
     "shell:allow-open",

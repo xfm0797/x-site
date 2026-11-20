@@ -1,11 +1,13 @@
 //! 主题管理命令：列出 / 切换 / 导入
 
+use crate::db;
 use crate::db::DbState;
+use crate::error::AppError;
 use crate::models::post::SiteConfig;
 use crate::models::theme::{Theme, ThemeMeta, ThemeState};
 use std::fs;
 use std::path::Path;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 
 /// 列出所有已安装主题
 ///
@@ -59,8 +61,8 @@ pub fn list_themes(
         _ => a.meta.display_name.cmp(&b.meta.display_name),
     });
 
-    // F: 从 db 拉取 site_config，覆盖 active 标记
-    if let Ok(cfg) = load_site_config(&db) {
+    // 从 db 拉取 site_config，覆盖 active 标记
+    if let Ok(cfg) = db::config::load(&db) {
         for t in themes.iter_mut() {
             t.active = t.meta.name == cfg.theme;
         }
@@ -82,17 +84,17 @@ pub fn apply_theme(
     // 校验主题是否存在
     let theme_dir = theme_state.themes_dir.join(&name);
     if !theme_dir.exists() {
-        return Err(format!("Theme '{}' not found", name));
+        return Err(AppError::Validation(format!("Theme '{}' not found", name)).to_frontend());
     }
 
     // 更新 SiteConfig
-    let mut cfg = load_site_config(&db)?;
+    let mut cfg = db::config::load(&db).map_err(|e| e.to_frontend())?;
     cfg.theme = name.clone();
-    save_site_config(&db, &cfg)?;
+    db::config::save(&db, &cfg).map_err(|e| e.to_frontend())?;
 
     // 同步 ThemeState
     {
-        let mut active = theme_state.active.lock().map_err(|e| e.to_string())?;
+        let mut active = theme_state.active.lock().map_err(|e| AppError::Db(e.to_string()).to_frontend())?;
         *active = name.clone();
     }
 
@@ -125,7 +127,7 @@ pub fn import_theme(
         let name = entry.name().replace('\\', "/");
         if name.ends_with("/theme.json") || name == "theme.json" {
             // 取 theme.json 的上一级目录名作为主题名
-            let parent = name.rsplitn(2, '/').nth(1);
+            let parent = name.rsplit_once('/').map(|(p, _)| p);
             if let Some(p) = parent {
                 theme_name = Some(p.to_string());
             } else {
@@ -225,7 +227,7 @@ pub fn import_theme(
 /// 获取当前站点配置（前端用于通用设置面板）
 #[tauri::command]
 pub fn get_theme_settings(db: State<'_, DbState>) -> Result<SiteConfig, String> {
-    load_site_config(&db)
+    db::config::load(&db).map_err(|e| e.to_frontend())
 }
 
 /// 保存站点配置（覆盖写回 site_config 表）
@@ -235,7 +237,7 @@ pub fn save_theme_settings(
     db: State<'_, DbState>,
     config: SiteConfig,
 ) -> Result<(), String> {
-    save_site_config(&db, &config)?;
+    db::config::save(&db, &config).map_err(|e| e.to_frontend())?;
     let _ = app.emit("settings://changed", &config.theme);
     Ok(())
 }
@@ -275,37 +277,5 @@ pub fn upload_logo(
     Ok(format!("assets/{}", filename))
 }
 
-// ============================================================
-// 辅助函数（与 generator::load_site_config 类似，避免循环依赖）
-// ============================================================
-
-fn load_site_config(db: &DbState) -> Result<SiteConfig, String> {
-    let conn = db.0.lock().map_err(|e| e.to_string())?;
-    let mut stmt = conn
-        .prepare("SELECT value FROM site_config WHERE key = ?1")
-        .map_err(|e| e.to_string())?;
-    let row: Option<String> = stmt
-        .query_row([&"main"], |r| r.get(0))
-        .ok();
-    match row {
-        Some(toml_str) => {
-            toml::from_str::<SiteConfig>(&toml_str).map_err(|e| format!("parse site_config: {e}"))
-        }
-        None => Ok(SiteConfig::default()),
-    }
-}
-
-fn save_site_config(db: &DbState, cfg: &SiteConfig) -> Result<(), String> {
-    let toml_str = toml::to_string(cfg).map_err(|e| e.to_string())?;
-    let conn = db.0.lock().map_err(|e| e.to_string())?;
-    conn.execute(
-        "INSERT INTO site_config (key, value) VALUES (?1, ?2)
-         ON CONFLICT(key) DO UPDATE SET value = ?2",
-        rusqlite::params!["main", toml_str],
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-// tauri Emitter trait
+// tauri Emitter trait（仅 settings://changed 事件使用）
 use tauri::Emitter;

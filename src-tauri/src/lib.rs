@@ -1,6 +1,7 @@
 mod commands;
 mod db;
 mod deploy;
+mod error;
 mod generator;
 mod models;
 
@@ -11,7 +12,6 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
@@ -28,7 +28,7 @@ pub fn run() {
             let db_state = db::init(&db_path.to_string_lossy())?;
 
             // 从数据库加载 SiteConfig 获取当前主题名
-            let site_config = load_config_from_db(&db_state).unwrap_or_default();
+            let site_config = db::config::load(&db_state).unwrap_or_default();
             let active_theme = site_config.theme.clone();
 
             // 主题目录：app_data_dir/themes/
@@ -76,24 +76,9 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-/// 从数据库加载 SiteConfig（setup 时用，避免循环依赖）
-fn load_config_from_db(
-    db: &db::DbState,
-) -> Result<models::post::SiteConfig, String> {
-    use rusqlite::params;
-    let conn = db.0.lock().map_err(|e| e.to_string())?;
-    let mut stmt = conn
-        .prepare("SELECT value FROM site_config WHERE key = ?1")
-        .map_err(|e| e.to_string())?;
-    let row: Option<String> = stmt
-        .query_row(params!["main"], |r| r.get(0))
-        .ok();
-    match row {
-        Some(toml_str) => toml::from_str(&toml_str)
-            .map_err(|e| format!("parse site_config: {e}")),
-        None => Ok(models::post::SiteConfig::default()),
-    }
-}
+// ============================================================
+// 内置主题释放（setup 时首次执行一次）
+// ============================================================
 
 /// 把编译期内联的 default 主题释放到目标目录
 fn extract_default_theme(target: &std::path::Path) -> Result<(), String> {

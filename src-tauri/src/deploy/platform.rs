@@ -47,6 +47,7 @@ fn walk_dir(base: &Path, current: &Path, files: &mut Vec<(String, PathBuf)>) -> 
 struct NetlifyDeploy {
     id: String,
     #[serde(default)]
+    #[allow(dead_code)]
     url: Option<String>,
 }
 

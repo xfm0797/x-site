@@ -1,3 +1,13 @@
+//! SQLite 数据库连接与表结构
+//!
+//! - `init()`：首次建表 + 迁移，返回共享的 `DbState`
+//! - `config` 子模块：站点配置仓储（site_config 表）
+//! - `posts` 子模块：文章仓储（posts 表）
+
+pub mod config;
+pub mod posts;
+
+use crate::error::AppError;
 use rusqlite::Connection;
 use std::sync::Mutex;
 
@@ -33,15 +43,15 @@ const MIGRATIONS: &[&str] = &[
 ];
 
 /// 初始化数据库连接并执行迁移
-pub fn init(db_path: &str) -> Result<DbState, String> {
-    let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+pub fn init(db_path: &str) -> Result<DbState, AppError> {
+    let conn = Connection::open(db_path)?;
     // 启用 WAL 模式，提升并发读性能
-    conn.pragma_update(None, "journal_mode", "WAL")
-        .map_err(|e| e.to_string())?;
-    conn.execute_batch(SCHEMA).map_err(|e| e.to_string())?;
+    conn.pragma_update(None, "journal_mode", "WAL")?;
+    conn.execute_batch(SCHEMA)?;
     // 逐条执行迁移（旧库升级用），新库会因列已存在而忽略错误
     for sql in MIGRATIONS {
         let _ = conn.execute(sql, []); // 忽略 "duplicate column" 错误
     }
     Ok(DbState(Mutex::new(conn)))
 }
+

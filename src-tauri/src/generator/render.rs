@@ -216,14 +216,13 @@ fn parse_code_block(block: &str) -> (String, String) {
     let end_tag = "</code></pre>";
     let content_end = after_class
         .find(end_tag)
-        .map(|i| i)
         .unwrap_or(after_class.len());
     let inner = &after_class[..content_end];
 
     // 从 block 解析 language
     let lang = if let Some(start) = block.find("language-") {
         let after = &block[start + "language-".len()..];
-        let end = after.find(|c: char| c == '"' || c == ' ').unwrap_or(after.len());
+        let end = after.find(|c: char| ['"', ' '].contains(&c)).unwrap_or(after.len());
         after[..end].to_string()
     } else {
         String::new()

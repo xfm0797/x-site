@@ -32,40 +32,6 @@ pub struct PostMeta {
     pub updated_at: String,
 }
 
-impl Post {
-    /// 生成轻量元数据（用于文章列表）
-    pub fn to_meta(&self) -> PostMeta {
-        PostMeta {
-            id: self.id.clone(),
-            title: self.title.clone(),
-            slug: self.slug.clone(),
-            status: self.status.clone(),
-            tags: self.tags.clone(),
-            category: self.category.clone(),
-            cover: self.cover.clone(),
-            created_at: self.created_at.clone(),
-            updated_at: self.updated_at.clone(),
-        }
-    }
-
-    /// 创建一篇空白草稿（用于编辑器新建文章）
-    pub fn new_draft(id: String) -> Self {
-        let now = chrono::Utc::now().to_rfc3339();
-        Self {
-            id,
-            title: String::new(),
-            slug: String::new(),
-            content: String::new(),
-            status: "draft".into(),
-            tags: Vec::new(),
-            category: String::new(),
-            cover: String::new(),
-            created_at: now.clone(),
-            updated_at: now,
-        }
-    }
-}
-
 /// 友情链接
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FriendLink {
@@ -75,11 +41,12 @@ pub struct FriendLink {
 }
 
 /// 评论系统类型（支持主流评论服务接入）
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum CommentSystem {
     /// 不启用评论
     #[serde(rename = "none")]
+    #[default]
     None,
     /// Disqus（短网址）
     Disqus,
@@ -95,12 +62,6 @@ pub enum CommentSystem {
     Giscus,
     /// 自定义 HTML 代码
     Custom,
-}
-
-impl Default for CommentSystem {
-    fn default() -> Self {
-        CommentSystem::None
-    }
 }
 
 /// 评论系统配置（键值对，不同系统所需字段不同）

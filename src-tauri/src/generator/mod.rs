@@ -6,21 +6,49 @@
 //   render.rs    — pulldown-cmark Markdown → HTML、Tera 模板渲染
 //   assets.rs    — 主题资源复制（css/js/img）
 //   feed.rs      — sitemap.xml / RSS feed.xml / robots.txt 生成
+//
+// generator 模块**不依赖 tauri crate**：路径 / 进度上报通过 `GeneratorPaths` 和
+// `ProgressSink` trait 注入，这样可以脱离框架直接写 `cargo test`。
+// Tauri 命令层（commands/generate.rs）负责把 AppHandle 适配为上述接口。
 
 pub mod assets;
 pub mod context;
 pub mod feed;
 pub mod render;
 
-use crate::db::DbState;
-use crate::models::post::{Post, SiteConfig};
+use crate::db::{self, DbState};
+use crate::error::{AppError, AppResult};
+use crate::models::post::Post;
 use context::{SiteContext, build_post_context};
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, Manager};
+
+// ============================================================
+// 依赖注入接口（解耦 generator 与 Tauri 框架）
+// ============================================================
+
+/// 生成器所需的文件系统路径，由上层（Tauri command）从 AppHandle 中组装
+pub struct GeneratorPaths {
+    /// 主题目录根：`<app_data_dir>/themes/`
+    pub themes_dir: PathBuf,
+    /// 用户资源目录（文章插图、Logo 等）：`<app_data_dir>/assets/`
+    pub user_assets_dir: PathBuf,
+}
+
+/// 进度上报抽象：Tauri 命令层用它推送事件，测试里可以用空实现或收集到 Vec
+pub trait ProgressSink: Send + Sync {
+    fn emit(&self, current: usize, total: usize, file: &str);
+}
+
+/// 空 sink（用于测试或生成过程中不关心进度）
+#[allow(dead_code)]
+pub struct NullProgress;
+impl ProgressSink for NullProgress {
+    fn emit(&self, _current: usize, _total: usize, _file: &str) {}
+}
 
 // ============================================================
 // 主入口
@@ -60,25 +88,23 @@ fn clean_output(output_path: &Path) {
 /// 4. 并发渲染文章页（rayon）
 /// 5. 渲染首页（分页）、归档页、标签页、分类页、友情链接页
 /// 6. 生成 sitemap.xml、feed.xml、robots.txt
-///
-/// 进度通过 Tauri 事件 `generate://progress` 推送，payload 形如：
-///   { "current": 3, "total": 10, "percent": 30, "file": "posts/hello.html" }
 pub fn generate(
-    app: &AppHandle,
+    paths: &GeneratorPaths,
+    progress: &dyn ProgressSink,
     db: &DbState,
     output_dir: &str,
-) -> Result<(), String> {
+) -> AppResult<()> {
     // ----------------------------------------------------------
     // 1. 加载数据
     // ----------------------------------------------------------
-    emit_progress(app, 0, 1, "Loading posts...");
-    let posts = load_published_posts(db)?;
-    let site_config = load_site_config(db)?;
+    progress.emit(0, 1, "Loading posts...");
+    let posts = db::posts::load_published(db)?;
+    let site_config = db::config::load(db)?;
     let total = posts.len() + 6; // 文章 + 首页/归档/标签/分类/links/feed
     let mut current = 0usize;
 
     if posts.is_empty() {
-        return Err("No published posts found".into());
+        return Err(AppError::Validation("No published posts found".into()));
     }
 
     // 同 slug 的文章会互相覆盖 HTML，生成前直接报错并指出冲突
@@ -86,19 +112,18 @@ pub fn generate(
     for post in &posts {
         let slug = post_slug_or_id(post);
         if !seen_slugs.insert(slug) {
-            return Err(format!(
+            return Err(AppError::Validation(format!(
                 "Duplicate post slug '{}': please change the slug of one of the posts before generating",
                 slug
-            ));
+            )));
         }
     }
 
     // ----------------------------------------------------------
     // 2. 准备 Tera 模板
     // ----------------------------------------------------------
-    emit_progress(app, current, total, "Loading theme templates...");
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let theme_dir = app_data_dir.join("themes").join(&site_config.theme);
+    progress.emit(current, total, "Loading theme templates...");
+    let theme_dir = paths.themes_dir.join(&site_config.theme);
     let tera = render::load_theme(&theme_dir)?;
 
     // 输出目录结构（先清理生成器管理的旧产物，避免删文/改 slug 后残留幽灵页面）
@@ -109,35 +134,31 @@ pub fn generate(
     let cats_dir = output_path.join("categories");
     let page_dir = output_path.join("page");
     for d in [&posts_dir, &tags_dir, &cats_dir, &page_dir] {
-        fs::create_dir_all(d).map_err(|e| e.to_string())?;
+        fs::create_dir_all(d)?;
     }
 
     // ----------------------------------------------------------
     // 3. 复制主题 assets
     // ----------------------------------------------------------
-    emit_progress(app, current, total, "Copying theme assets...");
+    progress.emit(current, total, "Copying theme assets...");
     let theme_assets_dir = theme_dir.join("assets");
     let out_assets_dir = output_path.join("assets");
     if theme_assets_dir.exists() {
         assets::copy_dir(&theme_assets_dir, &out_assets_dir)
-            .map_err(|e| format!("copy assets: {e}"))?;
+            .map_err(AppError::Io)?;
     }
     // 文章插图、Logo 等用户资源（app_data/assets/）一并复制，修复生成站图片 404
-    let user_assets_dir = app_data_dir.join("assets");
-    if user_assets_dir.exists() {
-        assets::copy_dir(&user_assets_dir, &out_assets_dir)
-            .map_err(|e| format!("copy post assets: {e}"))?;
+    if paths.user_assets_dir.exists() {
+        assets::copy_dir(&paths.user_assets_dir, &out_assets_dir)
+            .map_err(AppError::Io)?;
     }
 
     // ----------------------------------------------------------
     // 4. 并发渲染文章页
     // ----------------------------------------------------------
-    // 把 SiteContext 提前构造好（Arc 共享），每个文章只需追加自己的字段
     let site_ctx = Arc::new(SiteContext::new(&site_config));
-    // 共享 Tera 实例（Tera 内部用 RwLock，可并发只读渲染）
     let tera = Arc::new(tera);
 
-    // 收集结果到 Vec（按原顺序保持稳定）
     let results: Vec<Result<(String, String), String>> = posts
         .par_iter()
         .map(|post| {
@@ -150,21 +171,20 @@ pub fn generate(
         })
         .collect();
 
-    // 写入文件（顺序写，避免 rayon 内部 IO 交错）
     for res in results {
-        let (filename, html) = res?;
+        let (filename, html) = res.map_err(AppError::Template)?;
         let file_path = posts_dir.join(&filename);
-        fs::write(&file_path, html).map_err(|e| e.to_string())?;
+        fs::write(&file_path, html)?;
         current += 1;
-        emit_progress(app, current, total, &format!("posts/{}", filename));
+        progress.emit(current, total, &format!("posts/{}", filename));
     }
 
     // ----------------------------------------------------------
     // 5. 首页（分页）
     // ----------------------------------------------------------
-    emit_progress(app, current, total, "Rendering index pages...");
+    progress.emit(current, total, "Rendering index pages...");
     let per_page = site_config.posts_per_page.max(1);
-    let total_pages = (posts.len() + per_page - 1) / per_page;
+    let total_pages = posts.len().div_ceil(per_page);
     for page_num in 1..=total_pages {
         let start = (page_num - 1) * per_page;
         let end = (start + per_page).min(posts.len());
@@ -177,11 +197,9 @@ pub fn generate(
             total_pages,
         )?;
         if page_num == 1 {
-            fs::write(output_path.join("index.html"), html)
-                .map_err(|e| e.to_string())?;
+            fs::write(output_path.join("index.html"), html)?;
         } else {
-            fs::write(page_dir.join(format!("{}.html", page_num)), html)
-                .map_err(|e| e.to_string())?;
+            fs::write(page_dir.join(format!("{}.html", page_num)), html)?;
         }
     }
     current += 1;
@@ -189,16 +207,15 @@ pub fn generate(
     // ----------------------------------------------------------
     // 6. 归档页
     // ----------------------------------------------------------
-    emit_progress(app, current, total, "Rendering archive...");
+    progress.emit(current, total, "Rendering archive...");
     let archive_html = render::render_archive(&tera, &site_ctx, &posts)?;
-    fs::write(output_path.join("archive.html"), archive_html)
-        .map_err(|e| e.to_string())?;
+    fs::write(output_path.join("archive.html"), archive_html)?;
     current += 1;
 
     // ----------------------------------------------------------
     // 7. 标签页（按 tag 分组）
     // ----------------------------------------------------------
-    emit_progress(app, current, total, "Rendering tag pages...");
+    progress.emit(current, total, "Rendering tag pages...");
     let mut tags_map: BTreeMap<String, Vec<&Post>> = BTreeMap::new();
     for p in &posts {
         for t in &p.tags {
@@ -206,21 +223,17 @@ pub fn generate(
         }
     }
     for (tag, tag_posts) in &tags_map {
-        let html = render::render_tag_page(
-            &tera,
-            &site_ctx,
-            tag,
-            tag_posts,
-        )?;
-        let filename = format!("{}.html", slugify::slugify(tag));
-        fs::write(tags_dir.join(&filename), html).map_err(|e| e.to_string())?;
+        let html =
+            render::render_tag_page(&tera, &site_ctx, tag, tag_posts)?;
+        let filename = format!("{}.html", slugify(tag));
+        fs::write(tags_dir.join(&filename), html)?;
     }
     current += 1;
 
     // ----------------------------------------------------------
     // 8. 分类页
     // ----------------------------------------------------------
-    emit_progress(app, current, total, "Rendering category pages...");
+    progress.emit(current, total, "Rendering category pages...");
     let mut cats_map: BTreeMap<String, Vec<&Post>> = BTreeMap::new();
     for p in &posts {
         if !p.category.is_empty() {
@@ -228,98 +241,32 @@ pub fn generate(
         }
     }
     for (cat, cat_posts) in &cats_map {
-        let html = render::render_category_page(
-            &tera,
-            &site_ctx,
-            cat,
-            cat_posts,
-        )?;
-        let filename = format!("{}.html", slugify::slugify(cat));
-        fs::write(cats_dir.join(&filename), html).map_err(|e| e.to_string())?;
+        let html =
+            render::render_category_page(&tera, &site_ctx, cat, cat_posts)?;
+        let filename = format!("{}.html", slugify(cat));
+        fs::write(cats_dir.join(&filename), html)?;
     }
     current += 1;
 
     // ----------------------------------------------------------
     // 9. 友情链接页
     // ----------------------------------------------------------
-    emit_progress(app, current, total, "Rendering links page...");
+    progress.emit(current, total, "Rendering links page...");
     let links_html = render::render_links_page(&tera, &site_ctx)?;
-    fs::write(output_path.join("links.html"), links_html)
-        .map_err(|e| e.to_string())?;
+    fs::write(output_path.join("links.html"), links_html)?;
     current += 1;
 
     // ----------------------------------------------------------
     // 10. sitemap / RSS / robots
     // ----------------------------------------------------------
-    emit_progress(app, current, total, "Generating sitemap & feed...");
-    feed::write_sitemap(output_path, &site_config, &posts)
-        .map_err(|e| e.to_string())?;
-    feed::write_rss(output_path, &site_config, &posts)
-        .map_err(|e| e.to_string())?;
-    feed::write_robots(output_path, &site_config).map_err(|e| e.to_string())?;
-    current += 1;
+    progress.emit(current, total, "Generating sitemap & feed...");
+    feed::write_sitemap(output_path, &site_config, &posts)?;
+    feed::write_rss(output_path, &site_config, &posts)?;
+    feed::write_robots(output_path, &site_config)?;
+    // current 在 sitemap/RSS/robots 生成时无独立进度点，最终 emit(total, total, ...) 已兜底
 
-    emit_progress(app, total, total, "Done");
+    progress.emit(total, total, "Done");
     Ok(())
-}
-
-// ============================================================
-// 数据加载
-// ============================================================
-
-fn load_published_posts(db: &DbState) -> Result<Vec<Post>, String> {
-    let conn = db.0.lock().map_err(|e| e.to_string())?;
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, title, slug, content, status, tags,
-                   category, cover, created_at, updated_at
-             FROM posts WHERE status = 'published'
-             ORDER BY datetime(created_at) DESC",
-        )
-        .map_err(|e| e.to_string())?;
-
-    let posts = stmt
-        .query_map([], |row| {
-            let tags_str: String = row.get(5)?;
-            let tags: Vec<String> =
-                serde_json::from_str(&tags_str).unwrap_or_default();
-            Ok(Post {
-                id: row.get(0)?,
-                title: row.get(1)?,
-                slug: row.get(2)?,
-                content: row.get(3)?,
-                status: row.get(4)?,
-                tags,
-                category: row.get(6)?,
-                cover: row.get(7)?,
-                created_at: row.get(8)?,
-                updated_at: row.get(9)?,
-            })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-
-    Ok(posts)
-}
-
-/// 从 site_config 表读取主配置（key="main"）
-/// 缺失时返回默认值
-fn load_site_config(db: &DbState) -> Result<SiteConfig, String> {
-    let conn = db.0.lock().map_err(|e| e.to_string())?;
-    let mut stmt = conn
-        .prepare("SELECT value FROM site_config WHERE key = ?1")
-        .map_err(|e| e.to_string())?;
-    let row: Option<String> = stmt
-        .query_row([&"main"], |r| r.get(0))
-        .ok();
-    match row {
-        Some(toml_str) => {
-            toml::from_str::<SiteConfig>(&toml_str)
-                .map_err(|e| format!("parse site_config: {e}"))
-        }
-        None => Ok(SiteConfig::default()),
-    }
 }
 
 // ============================================================
@@ -335,42 +282,22 @@ fn post_slug_or_id(post: &Post) -> &str {
     }
 }
 
-/// 推送进度事件
-fn emit_progress(app: &AppHandle, current: usize, total: usize, file: &str) {
-    let percent = if total == 0 {
-        100
-    } else {
-        ((current as f64 / total as f64) * 100.0) as u32
-    };
-    let _ = app.emit(
-        "generate://progress",
-        serde_json::json!({
-            "current": current,
-            "total": total,
-            "percent": percent,
-            "file": file,
-        }),
-    );
-}
-
-// 临时内联 slugify（避免引入额外 crate）
-mod slugify {
-    pub fn slugify(text: &str) -> String {
-        text.trim()
-            .to_lowercase()
-            .chars()
-            .map(|c| {
-                if c.is_alphanumeric() {
-                    c
-                } else if c.is_whitespace() || c == '-' {
-                    '-'
-                } else {
-                    '\0'
-                }
-            })
-            .filter(|c| *c != '\0')
-            .collect::<String>()
-            .trim_matches('-')
-            .to_string()
-    }
+/// 临时内联 slugify（避免引入额外 crate）
+fn slugify(text: &str) -> String {
+    text.trim()
+        .to_lowercase()
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() {
+                c
+            } else if c.is_whitespace() || c == '-' {
+                '-'
+            } else {
+                '\0'
+            }
+        })
+        .filter(|c| *c != '\0')
+        .collect::<String>()
+        .trim_matches('-')
+        .to_string()
 }
