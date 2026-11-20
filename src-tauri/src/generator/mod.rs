@@ -830,4 +830,139 @@ mod integration_tests {
             "应为 Validation，实际: {err:?}"
         );
     }
+
+    // --------------------------------------------------------
+    // 增量生成：删文 → 重新 generate → 旧 HTML 应被清理
+    // --------------------------------------------------------
+
+    #[test]
+    fn delete_then_generate_cleans_stale_html() {
+        let db = DbState(std::sync::Mutex::new(
+            rusqlite::Connection::open_in_memory().unwrap(),
+        ));
+        {
+            let conn = db.0.lock().unwrap();
+            conn.execute_batch(
+                "CREATE TABLE posts (
+                    id TEXT PRIMARY KEY, title TEXT NOT NULL, slug TEXT NOT NULL DEFAULT '',
+                    content TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'draft',
+                    tags TEXT NOT NULL DEFAULT '[]', category TEXT NOT NULL DEFAULT '',
+                    cover TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+                );
+                CREATE TABLE site_config (key TEXT PRIMARY KEY, value TEXT NOT NULL);",
+            )
+            .unwrap();
+            let cfg = SiteConfig {
+                title: "T".into(), author: "A".into(), url: "https://u".into(),
+                theme: "minimal".into(), ..Default::default()
+            };
+            conn.execute(
+                "INSERT INTO site_config (key, value) VALUES (?1, ?2)",
+                rusqlite::params!["main", toml::to_string(&cfg).unwrap()],
+            )
+            .unwrap();
+            let now = "2026-06-01T00:00:00Z";
+            let rows = [
+                ("p1", "A", "a", "# A"),
+                ("p2", "B", "b", "# B"),
+                ("p3", "C", "c", "# C"),
+            ];
+            for (id, title, slug, content) in rows {
+                conn.execute(
+                    "INSERT INTO posts (id,title,slug,content,status,tags,category,cover,created_at,updated_at)
+                     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+                    rusqlite::params![id, title, slug, content, "published", "[]", "", "", now, now],
+                )
+                .unwrap();
+            }
+        }
+
+        let themes = TempDir::new().unwrap();
+        let t = themes.path().join("minimal");
+        std::fs::create_dir_all(&t).unwrap();
+        prepare_theme(&t);
+        let output = TempDir::new().unwrap();
+        let paths = GeneratorPaths {
+            themes_dir: themes.path().to_path_buf(),
+            user_assets_dir: TempDir::new().unwrap().path().to_path_buf(),
+        };
+
+        // 第一次 generate
+        generate(&paths, &NullProgress, &db, output.path().to_str().unwrap()).unwrap();
+        let out = output.path();
+        assert!(out.join("posts/a.html").exists());
+        assert!(out.join("posts/b.html").exists());
+        assert!(out.join("posts/c.html").exists());
+        let sitemap = std::fs::read_to_string(out.join("sitemap.xml")).unwrap();
+        assert!(sitemap.contains("/posts/b.html"));
+
+        // 删 p2
+        {
+            let conn = db.0.lock().unwrap();
+            conn.execute("DELETE FROM posts WHERE id = 'p2'", []).unwrap();
+        }
+
+        // 第二次 generate
+        generate(&paths, &NullProgress, &db, output.path().to_str().unwrap()).unwrap();
+
+        // 旧 HTML 必须消失
+        assert!(
+            !out.join("posts/b.html").exists(),
+            "删除的文章 b.html 应被清理"
+        );
+        // 其他两篇继续存在
+        assert!(out.join("posts/a.html").exists());
+        assert!(out.join("posts/c.html").exists());
+
+        // sitemap 也必须更新（不再含 b）
+        let sitemap2 = std::fs::read_to_string(out.join("sitemap.xml")).unwrap();
+        assert!(!sitemap2.contains("/posts/b.html"), "sitemap 应移除 b");
+        assert!(sitemap2.contains("/posts/a.html"));
+    }
+
+    // --------------------------------------------------------
+    // 增量状态文件生成 & 再生成
+    // --------------------------------------------------------
+
+    #[test]
+    fn state_file_written_after_generate() {
+        let themes = TempDir::new().unwrap();
+        let t = themes.path().join("minimal");
+        std::fs::create_dir_all(&t).unwrap();
+        prepare_theme(&t);
+
+        let db = prepare_db();
+        let output = TempDir::new().unwrap();
+        let paths = GeneratorPaths {
+            themes_dir: themes.path().to_path_buf(),
+            user_assets_dir: TempDir::new().unwrap().path().to_path_buf(),
+        };
+
+        generate(&paths, &NullProgress, &db, output.path().to_str().unwrap()).unwrap();
+
+        let state_path = output.path().join(".gen_state.json");
+        assert!(state_path.exists(), ".gen_state.json 必须存在");
+        let state_json = std::fs::read_to_string(&state_path).unwrap();
+        // 应有 theme + 1 个 published post 的哈希（draft 不进 state）
+        assert!(
+            state_json.contains("minimal"),
+            "state 应记录主题名"
+        );
+        assert!(
+            state_json.contains("post-1"),
+            "state 应记录 published post id"
+        );
+        assert!(
+            !state_json.contains("post-2"),
+            "state 不应包含 draft post id"
+        );
+
+        // 第二次 generate（文章内容未变），state 文件应被更新
+        generate(&paths, &NullProgress, &db, output.path().to_str().unwrap()).unwrap();
+        let state_json2 = std::fs::read_to_string(&state_path).unwrap();
+        assert_eq!(
+            state_json, state_json2,
+            "内容未变 → state 不应变化"
+        );
+    }
 }

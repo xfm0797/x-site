@@ -7,6 +7,9 @@
 pub mod config;
 pub mod posts;
 
+#[cfg(test)]
+mod tests;
+
 use crate::error::AppError;
 use rusqlite::Connection;
 use std::sync::Mutex;
