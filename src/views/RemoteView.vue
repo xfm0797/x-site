@@ -5,7 +5,7 @@
  * 管理多个部署目标（local / git / netlify / vercel），
  * 持久化到 SiteConfig.deploy_targets。
  */
-import { ref, reactive, onMounted } from "vue";
+import { ref, reactive, computed, onMounted } from "vue";
 import {
   getThemeSettings,
   saveDeployTargets,
@@ -42,12 +42,12 @@ const form = reactive<DeployTarget>({
   config: { type: "local" },
 });
 
-const deployTypes = [
-  { value: "local", label: "本地复制" },
-  { value: "git", label: "Git 仓库" },
-  { value: "netlify", label: "Netlify" },
-  { value: "vercel", label: "Vercel" },
-];
+const deployTypes = computed(() => [
+  { value: "local", label: t("remote.typeLocal") },
+  { value: "git", label: t("remote.typeGit") },
+  { value: "netlify", label: t("remote.typeNetlify") },
+  { value: "vercel", label: t("remote.typeVercel") },
+]);
 
 onMounted(async () => {
   loading.value = true;
@@ -57,7 +57,7 @@ onMounted(async () => {
     if (!config.deploy_targets) config.deploy_targets = [];
     targets.value = config.deploy_targets;
   } catch (e) {
-    message.value = `加载失败：${e}`;
+    message.value = t("common.loadFailed", { msg: String(e) });
   } finally {
     loading.value = false;
   }
@@ -121,7 +121,7 @@ async function saveTargets() {
 }
 
 function typeLabel(type: string): string {
-  const found = deployTypes.find((d) => d.value === type);
+  const found = deployTypes.value.find((d) => d.value === type);
   return found ? found.label : type;
 }
 </script>

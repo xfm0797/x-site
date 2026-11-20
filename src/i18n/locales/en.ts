@@ -95,6 +95,7 @@ export default {
     empty: "No tags yet. Add tags to a post to see them here.",
     sectionTitle: "Posts tagged \"{tag}\"",
     collapse: "Collapse",
+    untitled: "(Untitled)",
   },
   themes: {
     title: "Themes",
@@ -104,6 +105,10 @@ export default {
     current: "Current theme: ",
     by: "by {author}",
     loading: "Loading...",
+    switched: "Switched to theme: {name}",
+    switchFailed: "Failed to switch theme: {msg}",
+    importSuccess: "Imported: {name}",
+    importFailed: "Import failed: {msg}",
   },
   themeSettings: {
     title: "Theme Settings",
@@ -117,6 +122,7 @@ export default {
     save: "Save Settings",
     saving: "Saving...",
     saved: "Settings saved",
+    logoUploadFailed: "Logo upload failed: {msg}",
     logo: "Logo",
     logoHint: "Upload site logo image (200x60 PNG/SVG recommended, empty to use text title)",
     uploadLogo: "Upload Logo",
@@ -125,6 +131,8 @@ export default {
     headerFooterHint: "Custom HTML code appended at the top of <body> / before </body> on every page. Use for analytics, announcements, ads, etc.",
     headerHtml: "Header HTML",
     footerHtml: "Footer HTML",
+    headerPlaceholder: "<!-- analytics / announcement / ads -->",
+    footerPlaceholder: "<!-- analytics / filing / ads -->",
     ads: "Ad Slots",
     adsHint: "HTML code for four ad slots. Empty means no ad in that slot.",
     adHeader: "Header Ad",
@@ -140,6 +148,7 @@ export default {
     csCustom: "Custom HTML",
     misc: "Misc",
     icp: "ICP Filing No.",
+    icpPlaceholder: "ICP Filing No. 12345678",
     friendLinks: "Friend Links",
     linkName: "Name",
     linkUrl: "URL",
@@ -170,6 +179,10 @@ export default {
     delete: "Delete",
     cancel: "Cancel",
     empty: "No deploy targets yet. Click \"Add Target\" to start.",
+    typeLocal: "Local Copy",
+    typeGit: "Git Repository",
+    typeNetlify: "Netlify",
+    typeVercel: "Vercel",
   },
   // Preview (generate + local preview)
   preview: {
@@ -213,6 +226,7 @@ export default {
   },
   common: {
     error: "Error: {msg}",
+    loadFailed: "Failed to load: {msg}",
     confirmDelete: "Delete this item? This action cannot be undone.",
     browse: "Browse...",
   },

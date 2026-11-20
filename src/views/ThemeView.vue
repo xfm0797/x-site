@@ -45,7 +45,7 @@ async function fetchThemes() {
   try {
     themes.value = await listThemes();
   } catch (e) {
-    themeMsg.value = `加载失败：${e}`;
+    themeMsg.value = t("common.loadFailed", { msg: String(e) });
   }
 }
 
@@ -55,10 +55,10 @@ async function switchTheme(theme: Theme) {
   if (theme.active) return;
   try {
     await applyTheme(theme.name);
-    themeMsg.value = `已切换到主题：${theme.display_name}`;
+    themeMsg.value = t("themes.switched", { name: theme.display_name });
     await fetchThemes();
   } catch (e) {
-    themeMsg.value = `切换失败：${e}`;
+    themeMsg.value = t("themes.switchFailed", { msg: String(e) });
   }
 }
 
@@ -71,13 +71,13 @@ async function pickZip() {
   const zipPath = selected as string;
 
   importing.value = true;
-  themeMsg.value = "正在导入...";
+  themeMsg.value = t("themes.importing");
   try {
     const themeName = await importTheme(zipPath);
-    themeMsg.value = `导入成功：${themeName}`;
+    themeMsg.value = t("themes.importSuccess", { name: themeName });
     await fetchThemes();
   } catch (e) {
-    themeMsg.value = `导入失败：${e}`;
+    themeMsg.value = t("themes.importFailed", { msg: String(e) });
   } finally {
     importing.value = false;
   }
@@ -201,7 +201,7 @@ async function handleUploadLogo() {
     const [relPath] = result;
     form.logo = relPath;
   } catch (e) {
-    settingsMsg.value = `Logo 上传失败：${e}`;
+    settingsMsg.value = t("themeSettings.logoUploadFailed", { msg: String(e) });
   }
 }
 
@@ -237,7 +237,7 @@ onMounted(async () => {
     if (!form.links) form.links = [];
     if (!form.deploy_targets) form.deploy_targets = [];
   } catch (e) {
-    settingsMsg.value = `加载失败：${e}`;
+    settingsMsg.value = t("common.loadFailed", { msg: String(e) });
   } finally {
     themeLoading.value = false;
     settingsLoading.value = false;
@@ -365,9 +365,9 @@ onBeforeUnmount(() => {
           <h2>{{ t("themeSettings.headerFooter") }}</h2>
           <p class="hint">{{ t("themeSettings.headerFooterHint") }}</p>
           <label class="field-label">{{ t("themeSettings.headerHtml") }}</label>
-          <textarea v-model="form.header_html" class="code-area" rows="4" placeholder='<!-- 统计代码 / 公告 / 广告 -->'></textarea>
+          <textarea v-model="form.header_html" class="code-area" rows="4" :placeholder="t('themeSettings.headerPlaceholder')"></textarea>
           <label class="field-label">{{ t("themeSettings.footerHtml") }}</label>
-          <textarea v-model="form.footer_html" class="code-area" rows="4" placeholder='<!-- 统计 / 备案 / 广告 -->'></textarea>
+          <textarea v-model="form.footer_html" class="code-area" rows="4" :placeholder="t('themeSettings.footerPlaceholder')"></textarea>
         </section>
 
         <!-- 广告位 -->
@@ -427,7 +427,7 @@ onBeforeUnmount(() => {
         <section class="card">
           <h2>{{ t("themeSettings.misc") }}</h2>
           <label class="field-label">{{ t("themeSettings.icp") }}</label>
-          <input v-model="form.icp" type="text" class="input" placeholder="京ICP备12345678号" />
+          <input v-model="form.icp" type="text" class="input" :placeholder="t('themeSettings.icpPlaceholder')" />
           <h3 class="sub-title">{{ t("themeSettings.friendLinks") }}</h3>
           <div v-for="(link, i) in form.links" :key="i" class="link-row">
             <input v-model="link.name" class="input" :placeholder="t('themeSettings.linkName')" />

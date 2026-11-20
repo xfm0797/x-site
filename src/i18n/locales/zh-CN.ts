@@ -100,6 +100,7 @@ export default {
     empty: "还没有标签。在文章中添加 tags 即可。",
     sectionTitle: `“#{tag}” 下的文章`,
     collapse: "收起",
+    untitled: "(未命名)",
   },
   // 主题
   themes: {
@@ -110,6 +111,10 @@ export default {
     current: "当前主题：",
     by: "by {author}",
     loading: "加载中...",
+    switched: "已切换到主题：{name}",
+    switchFailed: "切换失败：{msg}",
+    importSuccess: "导入成功：{name}",
+    importFailed: "导入失败：{msg}",
   },
   // 通用主题设置（Logo / 页头页尾 / 广告 / 评论）
   themeSettings: {
@@ -124,6 +129,7 @@ export default {
     save: "保存设置",
     saving: "保存中...",
     saved: "设置已保存",
+    logoUploadFailed: "Logo 上传失败：{msg}",
     logo: "Logo",
     logoHint: "上传站点 Logo 图片（建议 200x60 PNG/SVG，留空则显示文字标题）",
     uploadLogo: "上传 Logo",
@@ -132,6 +138,8 @@ export default {
     headerFooterHint: "自定义 HTML 代码，追加在每页的 <body> 顶部 / </body> 前，可用于统计代码、公告、广告等",
     headerHtml: "页头 HTML",
     footerHtml: "页尾 HTML",
+    headerPlaceholder: "<!-- 统计代码 / 公告 / 广告 -->",
+    footerPlaceholder: "<!-- 统计 / 备案 / 广告 -->",
     ads: "广告位",
     adsHint: "四个广告位的 HTML 代码，留空则不显示该广告位",
     adHeader: "页头广告",
@@ -147,6 +155,7 @@ export default {
     csCustom: "自定义 HTML",
     misc: "备案与其他",
     icp: "ICP 备案号",
+    icpPlaceholder: "京ICP备12345678号",
     friendLinks: "友情链接",
     linkName: "名称",
     linkUrl: "URL",
@@ -177,6 +186,10 @@ export default {
     delete: "删除",
     cancel: "取消",
     empty: "暂无部署目标，点击「添加目标」开始",
+    typeLocal: "本地复制",
+    typeGit: "Git 仓库",
+    typeNetlify: "Netlify",
+    typeVercel: "Vercel",
   },
   // 预览（生成站点 + 本地预览）
   preview: {
@@ -221,6 +234,7 @@ export default {
   // 通用
   common: {
     error: "错误：{msg}",
+    loadFailed: "加载失败：{msg}",
     confirmDelete: "确定删除？此操作不可撤销。",
     browse: "浏览...",
   },

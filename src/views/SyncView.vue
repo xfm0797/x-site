@@ -39,7 +39,7 @@ onMounted(async () => {
     const cfg = await getThemeSettings();
     targets.value = cfg.deploy_targets || [];
   } catch (e) {
-    message.value = `加载失败：${e}`;
+    message.value = t("common.loadFailed", { msg: String(e) });
   }
   try {
     outputDir.value = await getOutputDir();

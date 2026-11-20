@@ -112,7 +112,7 @@ function toggleTag(name: string) {
           :key="post.id"
           @click="router.push(`/editor/${post.id}`)"
         >
-          <span class="title">{{ post.title || "(未命名)" }}</span>
+          <span class="title">{{ post.title || t("tags.untitled") }}</span>
           <span class="status" :class="post.status">
             {{ post.status === "published" ? t("home.published") : t("home.draft") }}
           </span>

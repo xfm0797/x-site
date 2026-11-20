@@ -95,6 +95,7 @@ export default {
     empty: "尚無標籤。在文章中新增 tags 即可。",
     sectionTitle: `「{tag}」下的文章`,
     collapse: "收起",
+    untitled: "(未命名)",
   },
   themes: {
     title: "主題",
@@ -104,6 +105,10 @@ export default {
     current: "目前主題：",
     by: "作者：{author}",
     loading: "載入中...",
+    switched: "已切換到主題：{name}",
+    switchFailed: "切換失敗：{msg}",
+    importSuccess: "匯入成功：{name}",
+    importFailed: "匯入失敗：{msg}",
   },
   themeSettings: {
     title: "通用設定",
@@ -117,6 +122,7 @@ export default {
     save: "儲存設定",
     saving: "儲存中...",
     saved: "設定已儲存",
+    logoUploadFailed: "Logo 上傳失敗：{msg}",
     logo: "Logo",
     logoHint: "上傳網站 Logo 圖片（建議 200x60 PNG/SVG，留空則顯示文字標題）",
     uploadLogo: "上傳 Logo",
@@ -125,6 +131,8 @@ export default {
     headerFooterHint: "自訂 HTML 程式碼，追加在每頁的 <body> 頂部 / </body> 前，可用於統計程式碼、公告、廣告等",
     headerHtml: "頁首 HTML",
     footerHtml: "頁尾 HTML",
+    headerPlaceholder: "<!-- 統計程式碼 / 公告 / 廣告 -->",
+    footerPlaceholder: "<!-- 統計 / 備案 / 廣告 -->",
     ads: "廣告位",
     adsHint: "四個廣告位的 HTML 程式碼，留空則不顯示該廣告位",
     adHeader: "頁首廣告",
@@ -140,6 +148,7 @@ export default {
     csCustom: "自訂 HTML",
     misc: "備案與其他",
     icp: "ICP 備案號",
+    icpPlaceholder: "京ICP備12345678號",
     friendLinks: "友情連結",
     linkName: "名稱",
     linkUrl: "URL",
@@ -170,6 +179,10 @@ export default {
     delete: "刪除",
     cancel: "取消",
     empty: "暫無部署目標，點擊「新增目標」開始",
+    typeLocal: "本機複製",
+    typeGit: "Git 倉庫",
+    typeNetlify: "Netlify",
+    typeVercel: "Vercel",
   },
   // 預覽（產生網站 + 本機預覽）
   preview: {
@@ -213,6 +226,7 @@ export default {
   },
   common: {
     error: "錯誤：{msg}",
+    loadFailed: "載入失敗：{msg}",
     confirmDelete: "確定刪除？此操作無法復原。",
     browse: "瀏覽...",
   },
