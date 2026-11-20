@@ -124,6 +124,7 @@ const form = reactive<SiteConfig>({
     params: {},
   },
   icp: "",
+  output_dir: "",
   deploy_targets: [],
 });
 

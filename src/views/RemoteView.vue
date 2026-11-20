@@ -28,6 +28,7 @@ const config = reactive<SiteConfig>({
   ads: { header_html: "", sidebar_html: "", post_footer_html: "", site_footer_html: "" },
   comments: { system: "none", params: {} },
   icp: "",
+  output_dir: "",
   deploy_targets: [],
 });
 
