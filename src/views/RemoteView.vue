@@ -8,7 +8,7 @@
 import { ref, reactive, onMounted } from "vue";
 import {
   getThemeSettings,
-  saveThemeSettings,
+  saveDeployTargets,
   type SiteConfig,
   type DeployTarget,
 } from "../api/tauri";
@@ -20,7 +20,7 @@ const loading = ref(false);
 const saving = ref(false);
 const message = ref("");
 
-// 完整 SiteConfig（保存时整体回写）
+// 加载时用于读取 deploy_targets
 const config = reactive<SiteConfig>({
   title: "", description: "", author: "", url: "",
   theme: "default", posts_per_page: 10, links: [], menus: [],
@@ -95,7 +95,6 @@ function saveTarget() {
   } else {
     targets.value.push(tgt);
   }
-  config.deploy_targets = targets.value;
   editing.value = false;
   // 自动保存
   void saveTargets();
@@ -103,7 +102,6 @@ function saveTarget() {
 
 function removeTarget(i: number) {
   targets.value.splice(i, 1);
-  config.deploy_targets = targets.value;
   void saveTargets();
 }
 
@@ -111,7 +109,7 @@ async function saveTargets() {
   saving.value = true;
   message.value = "";
   try {
-    await saveThemeSettings(config);
+    await saveDeployTargets(targets.value);
     message.value = t("remote.saved");
   } catch (e) {
     message.value = `${t("common.error")}: ${e}`;

@@ -337,12 +337,19 @@ pub fn get_theme_settings(db: State<'_, DbState>) -> Result<SiteConfig, String> 
 }
 
 /// 保存站点配置（覆盖写回 site_config 表）
+///
+/// 只更新主题设置相关字段：menus / deploy_targets 由各自的管理页
+/// 通过专用命令保存，这里保留库中旧值，避免整份回写时互相覆盖。
 #[tauri::command]
 pub fn save_theme_settings(
     app: AppHandle,
     db: State<'_, DbState>,
     config: SiteConfig,
 ) -> Result<(), String> {
+    let mut config = config;
+    let old = db::config::load(&db).map_err(|e| e.to_frontend())?;
+    config.menus = old.menus;
+    config.deploy_targets = old.deploy_targets;
     db::config::save(&db, &config).map_err(|e| e.to_frontend())?;
     let _ = app.emit("settings://changed", &config.theme);
     Ok(())

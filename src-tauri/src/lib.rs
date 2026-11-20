@@ -73,6 +73,7 @@ pub fn run() {
             commands::posts::import_image,
             commands::generate::generate_site,
             commands::deploy::deploy,
+            commands::deploy::save_deploy_targets,
             commands::theme::list_themes,
             commands::theme::apply_theme,
             commands::theme::import_theme,

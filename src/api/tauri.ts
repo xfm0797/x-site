@@ -239,6 +239,13 @@ export async function saveThemeSettings(config: SiteConfig): Promise<void> {
   return invoke<void>("save_theme_settings", { config });
 }
 
+/** 保存部署目标列表（只回写 deploy_targets，不影响其他配置） */
+export async function saveDeployTargets(
+  targets: DeployTarget[],
+): Promise<void> {
+  return invoke<void>("save_deploy_targets", { targets });
+}
+
 /** 获取站点导航菜单 */
 export async function getMenus(): Promise<MenuItem[]> {
   return invoke<MenuItem[]>("get_menus");
