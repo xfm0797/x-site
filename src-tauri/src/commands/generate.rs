@@ -1,7 +1,7 @@
 use crate::db::DbState;
 use crate::error::AppResult;
 use crate::generator::{self, ProgressSink};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, Manager};
 
 /// 把 AppHandle 适配为 generator::ProgressSink（向前端 emit 进度事件）
 struct TauriProgress<'a>(&'a AppHandle);
@@ -38,24 +38,24 @@ impl ProgressSink for TauriProgress<'_> {
 /// );
 /// ```
 #[tauri::command]
-pub fn generate_site(
-    app: AppHandle,
-    db: State<'_, DbState>,
-    output_dir: String,
-) -> Result<String, String> {
-    let output_path = std::path::PathBuf::from(&output_dir);
-
+pub async fn generate_site(app: AppHandle, output_dir: String) -> Result<String, String> {
     // 从 AppHandle 解析 generator 所需路径（generator 模块本身不依赖 tauri）
     let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let paths = generator::GeneratorPaths {
         themes_dir: app_data_dir.join("themes"),
         user_assets_dir: app_data_dir.join("assets"),
     };
-    let sink = TauriProgress(&app);
 
-    run_generator(&paths, &sink, &db, &output_path)
-        .map_err(|e: crate::error::AppError| e.to_frontend())?;
-    Ok(output_dir)
+    // 生成是 CPU/IO 密集的同步流程，放到阻塞线程池，避免卡住 async runtime
+    tauri::async_runtime::spawn_blocking(move || {
+        let db = app.state::<DbState>();
+        let sink = TauriProgress(&app);
+        run_generator(&paths, &sink, &db, std::path::Path::new(&output_dir))
+            .map_err(|e: crate::error::AppError| e.to_frontend())?;
+        Ok::<String, String>(output_dir)
+    })
+    .await
+    .map_err(|e| format!("Generate task failed: {e}"))?
 }
 
 /// generator 调用的薄封装，便于单独写测试（command 边界外可直接调用）
