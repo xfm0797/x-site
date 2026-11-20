@@ -6495,7 +6495,7 @@ dependencies = [
 
 [[package]]
 name = "x-site"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "axum",
  "chrono",
@@ -6518,6 +6518,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-shell",
  "tauri-plugin-updater",
+ "tempfile",
  "tera",
  "thiserror 1.0.69",
  "tokio",

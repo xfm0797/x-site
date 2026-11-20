@@ -581,3 +581,253 @@ mod tests {
         assert!(ctx.year >= 2024);
     }
 }
+
+// ============================================================
+// 集成测试（真 generate：临时 DB + 临时主题 + 断言产物）
+// ============================================================
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+    use crate::db::DbState;
+    use crate::error::AppError;
+    use crate::models::post::SiteConfig;
+    use tempfile::TempDir;
+
+    fn prepare_db() -> DbState {
+        let db = DbState(std::sync::Mutex::new(
+            rusqlite::Connection::open_in_memory().expect("open in-memory db"),
+        ));
+        let conn = db.0.lock().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE posts (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                slug TEXT NOT NULL DEFAULT '',
+                content TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'draft',
+                tags TEXT NOT NULL DEFAULT '[]',
+                category TEXT NOT NULL DEFAULT '',
+                cover TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE site_config (key TEXT PRIMARY KEY, value TEXT NOT NULL);",
+        )
+        .unwrap();
+
+        let cfg = SiteConfig {
+            title: "Integration Blog".into(),
+            author: "CI Tester".into(),
+            url: "https://blog.example.com".into(),
+            posts_per_page: 10,
+            theme: "minimal".into(),
+            ..Default::default()
+        };
+        conn.execute(
+            "INSERT INTO site_config (key, value) VALUES (?1, ?2)",
+            rusqlite::params!["main", toml::to_string(&cfg).unwrap()],
+        )
+        .unwrap();
+
+        let now = "2026-06-01T00:00:00Z";
+        conn.execute(
+            "INSERT INTO posts (id,title,slug,content,status,tags,category,cover,created_at,updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+            rusqlite::params![
+                "post-1", "First Post", "first-post", "# Hello\n\n**bold** body",
+                "published", r#"["rust","web"]"#, "Tech", "", now, now
+            ],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO posts (id,title,slug,content,status,tags,category,cover,created_at,updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+            rusqlite::params![
+                "post-2", "Second (draft)", "second-draft", "# Draft",
+                "draft", "[]", "", "", now, now
+            ],
+        )
+        .unwrap();
+        drop(conn);
+        db
+    }
+
+    /// 最小主题模板集（覆盖 generate 里所有 render_template 调用）
+    fn prepare_theme(dir: &std::path::Path) {
+        let tpl = dir;
+        let assets = dir.join("assets");
+        std::fs::create_dir_all(&assets).unwrap();
+
+        // post.tera 上下文 PostContext { site, post }（post 含 title / content | safe / url）
+        std::fs::write(
+            tpl.join("post.tera"),
+            "<html><head><title>{{ site.title }} - {{ post.title }}</title></head>\
+             <body><h1>{{ post.title }}</h1><div>{{ post.content | safe }}</div></body></html>",
+        )
+        .unwrap();
+        // index.tera 上下文 IndexContext { site, posts, page, total_pages, prev_url, next_url }
+        std::fs::write(
+            tpl.join("index.tera"),
+            "<html><body><h1>{{ site.title }}</h1>\
+             {% for i in posts %}<a href=\"{{ i.url }}\">{{ i.title }}</a>{% endfor %}</body></html>",
+        )
+        .unwrap();
+        // archive.tera 上下文 ArchiveContext { site, groups: Vec<(String, Vec<ListItem>)> }
+        // Tera 不支持直接解构 `for (y, items) in groups`，需要先 iterate 再访问
+        std::fs::write(
+            tpl.join("archive.tera"),
+            "<html><body><h1>Archive</h1>\
+             {% for g in groups %}<section>{{ g.0 }}</section>{% endfor %}</body></html>",
+        )
+        .unwrap();
+        // tag.tera 上下文 TagContext { site, tag, posts }
+        std::fs::write(
+            tpl.join("tag.tera"),
+            "<html><body><h1>#{{ tag }}</h1>\
+             {% for i in posts %}<a href=\"{{ i.url }}\">{{ i.title }}</a>{% endfor %}</body></html>",
+        )
+        .unwrap();
+        // category.tera 上下文 CategoryContext { site, category, posts }
+        std::fs::write(
+            tpl.join("category.tera"),
+            "<html><body><h1>{{ category }}</h1>\
+             {% for i in posts %}<a href=\"{{ i.url }}\">{{ i.title }}</a>{% endfor %}</body></html>",
+        )
+        .unwrap();
+        // links.tera 上下文 LinksContext { site }（links 字段可能来自 SiteConfig）
+        std::fs::write(
+            tpl.join("links.tera"),
+            "<html><body><h1>Links</h1></body></html>",
+        )
+        .unwrap();
+        std::fs::write(assets.join("style.css"), "body{}").unwrap();
+    }
+
+    #[test]
+    fn generate_produces_expected_artifacts() {
+        let db = prepare_db();
+        let themes_tmp = TempDir::new().unwrap();
+        let theme_root = themes_tmp.path();
+        let minimal = theme_root.join("minimal");
+        std::fs::create_dir_all(&minimal).unwrap();
+        prepare_theme(&minimal);
+
+        let user_assets = TempDir::new().unwrap();
+        let output = TempDir::new().unwrap();
+        let paths = GeneratorPaths {
+            themes_dir: theme_root.to_path_buf(),
+            user_assets_dir: user_assets.path().to_path_buf(),
+        };
+
+        generate(
+            &paths,
+            &NullProgress,
+            &db,
+            output.path().to_str().unwrap(),
+        )
+        .expect("generate must succeed");
+
+        let out = output.path();
+        for name in [
+            "index.html",
+            "archive.html",
+            "links.html",
+            "sitemap.xml",
+            "feed.xml",
+            "robots.txt",
+        ] {
+            assert!(out.join(name).exists(), "{name} 缺失");
+        }
+
+        // 主题 assets
+        assert!(
+            out.join("assets/style.css").exists(),
+            "主题 assets 未复制"
+        );
+
+        // 已发布文章 HTML
+        let first = out.join("posts/first-post.html");
+        assert!(first.exists(), "published 文章 HTML 缺失");
+        let c = std::fs::read_to_string(&first).unwrap();
+        assert!(c.contains("First Post"));
+        assert!(c.contains("<strong>bold</strong>"), "Markdown 未渲染");
+        assert!(c.contains("Integration Blog"));
+
+        // draft 不应出现
+        assert!(
+            !out.join("posts/second-draft.html").exists(),
+            "draft 不应生成"
+        );
+
+        // 标签页（rust, web）和分类页（Tech）
+        assert!(out.join("tags/rust.html").exists(), "tag rust 缺失");
+        assert!(out.join("tags/web.html").exists(), "tag web 缺失");
+        assert!(
+            out.join("categories/tech.html").exists(),
+            "category 缺失"
+        );
+    }
+
+    #[test]
+    fn slug_duplicate_is_rejected() {
+        let db = DbState(std::sync::Mutex::new(
+            rusqlite::Connection::open_in_memory().unwrap(),
+        ));
+        {
+            let conn = db.0.lock().unwrap();
+            conn.execute_batch(
+                "CREATE TABLE posts (
+                    id TEXT PRIMARY KEY, title TEXT NOT NULL, slug TEXT NOT NULL DEFAULT '',
+                    content TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'draft',
+                    tags TEXT NOT NULL DEFAULT '[]', category TEXT NOT NULL DEFAULT '',
+                    cover TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+                );
+                CREATE TABLE site_config (key TEXT PRIMARY KEY, value TEXT NOT NULL);",
+            )
+            .unwrap();
+            let cfg = SiteConfig {
+                title: "T".into(),
+                author: "A".into(),
+                url: "https://u".into(),
+                theme: "minimal".into(),
+                ..Default::default()
+            };
+            conn.execute(
+                "INSERT INTO site_config (key, value) VALUES (?1, ?2)",
+                rusqlite::params!["main", toml::to_string(&cfg).unwrap()],
+            )
+            .unwrap();
+            let now = "2026-06-01T00:00:00Z";
+            for id in ["p1", "p2"] {
+                conn.execute(
+                    "INSERT INTO posts (id,title,slug,content,status,tags,category,cover,created_at,updated_at)
+                     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+                    rusqlite::params![id, "Same", "dup", "# x", "published", "[]", "", "", now, now],
+                )
+                .unwrap();
+            }
+        }
+
+        let themes = TempDir::new().unwrap();
+        let t = themes.path().join("minimal");
+        std::fs::create_dir_all(&t).unwrap();
+        prepare_theme(&t);
+        let output = TempDir::new().unwrap();
+        let paths = GeneratorPaths {
+            themes_dir: themes.path().to_path_buf(),
+            user_assets_dir: TempDir::new().unwrap().path().to_path_buf(),
+        };
+
+        let err = generate(
+            &paths,
+            &NullProgress,
+            &db,
+            output.path().to_str().unwrap(),
+        )
+        .expect_err("duplicate slug must fail");
+        assert!(
+            matches!(err, AppError::Validation(_)),
+            "应为 Validation，实际: {err:?}"
+        );
+    }
+}

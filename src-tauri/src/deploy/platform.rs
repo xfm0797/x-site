@@ -14,25 +14,27 @@ use flate2::Compression;
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 
+use crate::error::{AppError, AppResult};
+
 use super::ProgressSink;
 
 /// 收集目录下所有文件的相对路径与绝对路径
-fn collect_files(site_dir: &Path) -> Result<Vec<(String, PathBuf)>, String> {
+fn collect_files(site_dir: &Path) -> AppResult<Vec<(String, PathBuf)>> {
     let mut files = Vec::new();
     walk_dir(site_dir, site_dir, &mut files)?;
     Ok(files)
 }
 
-fn walk_dir(base: &Path, current: &Path, files: &mut Vec<(String, PathBuf)>) -> Result<(), String> {
-    for entry in fs::read_dir(current).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
+fn walk_dir(base: &Path, current: &Path, files: &mut Vec<(String, PathBuf)>) -> AppResult<()> {
+    for entry in fs::read_dir(current)? {
+        let entry = entry?;
         let path = entry.path();
         if path.is_dir() {
             walk_dir(base, &path, files)?;
         } else {
             let rel = path
                 .strip_prefix(base)
-                .map_err(|e| e.to_string())?
+                .map_err(|e| AppError::Deploy(format!("strip prefix: {e}")))?
                 .to_string_lossy()
                 .replace('\\', "/");
             files.push((rel, path));
@@ -48,9 +50,6 @@ fn walk_dir(base: &Path, current: &Path, files: &mut Vec<(String, PathBuf)>) -> 
 #[derive(Debug, Deserialize)]
 struct NetlifyDeploy {
     id: String,
-    #[serde(default)]
-    #[allow(dead_code)]
-    url: Option<String>,
 }
 
 /// 部署到 Netlify：创建 deploy → 逐文件 gzip 上传
@@ -58,12 +57,16 @@ pub async fn deploy_netlify(
     site_dir: &str,
     config: &HashMap<String, String>,
     progress: Option<&dyn ProgressSink>,
-) -> Result<String, String> {
-    let token = config.get("token").ok_or("Missing 'token' in netlify config")?;
-    let site_id = config.get("site_id").ok_or("Missing 'site_id' in netlify config")?;
+) -> AppResult<String> {
+    let token = config
+        .get("token")
+        .ok_or_else(|| AppError::Validation("Missing 'token' in netlify config".into()))?;
+    let site_id = config
+        .get("site_id")
+        .ok_or_else(|| AppError::Validation("Missing 'site_id' in netlify config".into()))?;
 
     let client = reqwest::Client::new();
-    let base = format!("https://api.netlify.com/api/v1/sites/{}/deploys", site_id);
+    let base = format!("https://api.netlify.com/api/v1/sites/{site_id}/deploys");
 
     // 1. 创建 deploy（空 body，Netlify 返回 deploy_id）
     let resp = client
@@ -72,18 +75,20 @@ pub async fn deploy_netlify(
         .json(&serde_json::json!({ "title": "x-site deploy" }))
         .send()
         .await
-        .map_err(|e| format!("netlify create deploy: {e}"))?;
+        .map_err(|e| AppError::Deploy(format!("netlify create deploy: {e}")))?;
 
     if !resp.status().is_success() {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
-        return Err(format!("netlify create deploy failed ({status}): {body}"));
+        return Err(AppError::Deploy(format!(
+            "netlify create deploy failed ({status}): {body}"
+        )));
     }
 
     let deploy: NetlifyDeploy = resp
         .json()
         .await
-        .map_err(|e| format!("netlify parse deploy: {e}"))?;
+        .map_err(|e| AppError::Deploy(format!("netlify parse deploy: {e}")))?;
     let deploy_id = &deploy.id;
 
     // 2. 逐文件 gzip 上传
@@ -95,15 +100,15 @@ pub async fn deploy_netlify(
         if let Some(p) = progress {
             p.emit(i + 1, total, rel_path.as_str());
         }
-        let raw = fs::read(abs_path).map_err(|e| format!("read {}: {e}", rel_path))?;
+
+        let raw = fs::read(abs_path)?;
         // gzip 压缩
         let mut encoder = GzEncoder::new(&raw[..], Compression::default());
         let mut gz = Vec::new();
-        encoder.read_to_end(&mut gz).map_err(|e| format!("gzip {}: {e}", rel_path))?;
+        encoder.read_to_end(&mut gz)?;
 
         let upload_url = format!(
-            "https://api.netlify.com/api/v1/deploys/{}/files/{}",
-            deploy_id,
+            "https://api.netlify.com/api/v1/deploys/{deploy_id}/files/{}",
             url_encode_path(rel_path)
         );
 
@@ -114,17 +119,18 @@ pub async fn deploy_netlify(
             .body(gz)
             .send()
             .await
-            .map_err(|e| format!("netlify upload {rel_path} ({i}/{total}): {e}"))?;
+            .map_err(|e| AppError::Deploy(format!("netlify upload {rel_path}: {e}")))?;
 
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
-            return Err(format!("netlify upload {rel_path} failed ({status}): {body}"));
+            return Err(AppError::Deploy(format!(
+                "netlify upload {rel_path} failed ({status}): {body}"
+            )));
         }
     }
 
-    // 3. 完成
-    Ok(format!("Netlify: uploaded {total} files (deploy {})", deploy_id))
+    Ok(format!("Netlify: uploaded {total} files (deploy {deploy_id})"))
 }
 
 // ============================================================
@@ -134,8 +140,6 @@ pub async fn deploy_netlify(
 #[derive(Debug, Deserialize)]
 struct VercelFile {
     digest: String,
-    #[allow(dead_code)]
-    size: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -154,22 +158,25 @@ pub async fn deploy_vercel(
     site_dir: &str,
     config: &HashMap<String, String>,
     progress: Option<&dyn ProgressSink>,
-) -> Result<String, String> {
-    let token = config.get("token").ok_or("Missing 'token' in vercel config")?;
+) -> AppResult<String> {
+    let token = config
+        .get("token")
+        .ok_or_else(|| AppError::Validation("Missing 'token' in vercel config".into()))?;
     let project_id = config
         .get("project_id")
-        .ok_or("Missing 'project_id' in vercel config")?;
+        .ok_or_else(|| AppError::Validation("Missing 'project_id' in vercel config".into()))?;
 
     let mut headers = HeaderMap::new();
     headers.insert(
         "Authorization",
-        HeaderValue::from_str(&format!("Bearer {token}")).map_err(|e| format!("header: {e}"))?,
+        HeaderValue::from_str(&format!("Bearer {token}"))
+            .map_err(|e| AppError::Deploy(format!("header: {e}")))?,
     );
 
     let client = reqwest::Client::builder()
         .default_headers(headers)
         .build()
-        .map_err(|e| format!("reqwest client: {e}"))?;
+        .map_err(|e| AppError::Deploy(format!("reqwest client: {e}")))?;
 
     let site_path = Path::new(site_dir);
     let files = collect_files(site_path)?;
@@ -181,25 +188,28 @@ pub async fn deploy_vercel(
         if let Some(p) = progress {
             p.emit(i + 1, total, rel_path.as_str());
         }
-        let raw = fs::read(abs_path).map_err(|e| format!("read {}: {e}", rel_path))?;
+
+        let raw = fs::read(abs_path)?;
 
         let resp = client
             .post("https://api.vercel.com/v2/files")
             .body(raw)
             .send()
             .await
-            .map_err(|e| format!("vercel upload {rel_path} ({i}/{total}): {e}"))?;
+            .map_err(|e| AppError::Deploy(format!("vercel upload {rel_path}: {e}")))?;
 
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
-            return Err(format!("vercel upload {rel_path} failed ({status}): {body}"));
+            return Err(AppError::Deploy(format!(
+                "vercel upload {rel_path} failed ({status}): {body}"
+            )));
         }
 
         let f: VercelFile = resp
             .json()
             .await
-            .map_err(|e| format!("vercel parse {rel_path}: {e}"))?;
+            .map_err(|e| AppError::Deploy(format!("vercel parse {rel_path}: {e}")))?;
         deploy_files.push(VercelDeployFile {
             file: rel_path.clone(),
             sha: f.digest,
@@ -222,20 +232,25 @@ pub async fn deploy_vercel(
         .json(&body)
         .send()
         .await
-        .map_err(|e| format!("vercel create deployment: {e}"))?;
+        .map_err(|e| AppError::Deploy(format!("vercel create deployment: {e}")))?;
 
     if !resp.status().is_success() {
         let status = resp.status();
         let b = resp.text().await.unwrap_or_default();
-        return Err(format!("vercel create deployment failed ({status}): {b}"));
+        return Err(AppError::Deploy(format!(
+            "vercel create deployment failed ({status}): {b}"
+        )));
     }
 
     let dep: VercelDeployment = resp
         .json()
         .await
-        .map_err(|e| format!("vercel parse deployment: {e}"))?;
+        .map_err(|e| AppError::Deploy(format!("vercel parse deployment: {e}")))?;
 
-    Ok(format!("Vercel: deployed {total} files → https://{}", dep.url))
+    Ok(format!(
+        "Vercel: deployed {total} files → https://{}",
+        dep.url
+    ))
 }
 
 // ============================================================
@@ -252,7 +267,7 @@ fn url_encode_path(path: &str) -> String {
                     b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
                         s.push(byte as char);
                     }
-                    _ => s.push_str(&format!("%{:02X}", byte)),
+                    _ => s.push_str(&format!("%{byte:02X}")),
                 }
             }
             s

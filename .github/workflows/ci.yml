@@ -1,0 +1,68 @@
+name: CI
+
+# PR 和 push 都触发；tag push 交给 release.yml
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  # 关闭增量编译输出噪声
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  # ============================================================
+  # Rust 后端：fmt → clippy → test（三项全部过才能进 release）
+  # ============================================================
+  rust:
+    name: Rust (fmt / clippy / test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Tauri system deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev \
+            libsoup-3.0-dev librsvg2-dev libappindicator3-dev \
+            build-essential curl wget file libxdo-dev libssl-dev \
+            libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cargo cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: rustfmt — check formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+
+      - name: clippy — lint as errors
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --color never -- --deny warnings
+
+      - name: cargo test
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+
+  # ============================================================
+  # 前端：类型 + 构建（确保 dist 可产出）
+  # ============================================================
+  frontend:
+    name: Vue (tsc / build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci --no-audit --no-fund
+      - run: ./node_modules/.bin/vue-tsc --noEmit
+      - run: npm run build
