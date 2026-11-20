@@ -106,8 +106,6 @@ export interface ImportSummary {
   imported: number;
   /** 被跳过的文件路径（非 Markdown 或读取失败） */
   skipped: string[];
-  /** 新导入文章元数据 */
-  posts: PostMeta[];
 }
 
 /**

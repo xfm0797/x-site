@@ -125,8 +125,6 @@ pub struct ImportSummary {
     pub imported: usize,
     /// 被跳过的文件（非 Markdown 或读取失败）
     pub skipped: Vec<String>,
-    /// 新导入文章元数据，供前端直接刷新列表
-    pub posts: Vec<PostMeta>,
 }
 
 /// 从本地 Markdown 文件批量导入为草稿文章
@@ -142,7 +140,6 @@ pub fn import_markdown(
     let mut summary = ImportSummary {
         imported: 0,
         skipped: Vec::new(),
-        posts: Vec::new(),
     };
 
     for path in paths {
@@ -185,18 +182,7 @@ pub fn import_markdown(
             created_at: parsed.created_at.unwrap_or_else(|| now.clone()),
             updated_at: now,
         };
-        let saved = db::posts::save(&db, &post).map_err(|e| e.to_frontend())?;
-        summary.posts.push(PostMeta {
-            id: saved.id,
-            title: saved.title,
-            slug: saved.slug,
-            status: saved.status,
-            tags: saved.tags,
-            category: saved.category,
-            cover: saved.cover,
-            created_at: saved.created_at,
-            updated_at: saved.updated_at,
-        });
+        db::posts::save(&db, &post).map_err(|e| e.to_frontend())?;
         summary.imported += 1;
     }
 
@@ -225,7 +211,10 @@ struct ParsedMarkdown {
 ///
 /// frontmatter 支持键：title / slug / date / category / tags / status。
 /// 无 title 时取正文首个 `# 标题`（并从正文移除），再退化为文件名。
+/// slug 一律经 `slugify` 规范化，避免 `/`、`..` 等字符进入生成文件名。
 fn parse_markdown(raw: &str, fallback_title: &str) -> ParsedMarkdown {
+    // 兼容 Windows 编辑器写入的 UTF-8 BOM，否则 frontmatter 起始符匹配失败
+    let raw = raw.strip_prefix('\u{feff}').unwrap_or(raw);
     let (front, body) = split_frontmatter(raw);
     let mut content = body.to_string();
 
@@ -240,7 +229,7 @@ fn parse_markdown(raw: &str, fallback_title: &str) -> ParsedMarkdown {
 
     let slug = front
         .get("slug")
-        .map(|s| s.trim().to_string())
+        .map(|s| slugify(s))
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| slugify(&title));
 
@@ -445,6 +434,21 @@ mod tests {
         assert_eq!(slugify("Hello, World!"), "hello-world");
         assert_eq!(slugify("  Rust & Tauri  "), "rust-tauri");
         assert_eq!(slugify("中文 标题"), "中文-标题");
+    }
+
+    #[test]
+    fn strips_bom_before_frontmatter() {
+        let raw = "\u{feff}---\ntitle: Hi\n---\nbody";
+        let parsed = parse_markdown(raw, "fallback");
+        assert_eq!(parsed.title, "Hi");
+        assert_eq!(parsed.content, "body");
+    }
+
+    #[test]
+    fn sanitizes_unsafe_frontmatter_slug() {
+        let raw = "---\ntitle: Evil\nslug: ../../etc/passwd\n---\nbody";
+        let parsed = parse_markdown(raw, "fallback");
+        assert_eq!(parsed.slug, "etc-passwd");
     }
 
     #[test]
