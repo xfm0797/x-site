@@ -11,6 +11,17 @@ const { t } = useI18n();
 onMounted(() => {
   store.fetchPosts();
 });
+
+/** 删除文章（需确认），失败时显式提示 */
+async function onDelete(post: { id: string; title: string }) {
+  const title = post.title || t("home.untitled");
+  if (!window.confirm(t("home.deleteConfirm", { title }))) return;
+  try {
+    await store.removePost(post.id);
+  } catch (e: any) {
+    window.alert(t("common.error", { msg: String(e?.message ?? e) }));
+  }
+}
 </script>
 
 <template>
@@ -20,6 +31,10 @@ onMounted(() => {
       <button @click="router.push('/editor')">{{ t("home.newPost") }}</button>
     </div>
 
+    <p v-if="store.listError" class="list-error">
+      {{ t("common.error", { msg: store.listError }) }}
+    </p>
+
     <p v-if="store.loading">{{ t("home.loading") }}</p>
 
     <ul v-else-if="store.posts.length" class="post-list">
@@ -28,11 +43,12 @@ onMounted(() => {
         :key="post.id"
         @click="router.push(`/editor/${post.id}`)"
       >
-        <span class="title">{{ post.title || "(未命名)" }}</span>
+        <span class="title">{{ post.title || t("home.untitled") }}</span>
         <span class="status" :class="post.status">
           {{ post.status === "published" ? t("home.published") : t("home.draft") }}
         </span>
         <span class="date">{{ post.updated_at.slice(0, 10) }}</span>
+        <button class="delete-btn" :title="t('home.delete')" @click.stop="onDelete(post)">✕</button>
       </li>
     </ul>
 
@@ -93,6 +109,21 @@ onMounted(() => {
 .date {
   font-size: 12px;
   color: #999;
+}
+.delete-btn {
+  padding: 2px 8px;
+  font-size: 12px;
+  color: #dc2626;
+  background: transparent;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.delete-btn:hover {
+  background: #fef2f2;
+}
+.list-error {
+  color: #b91c1c;
 }
 .empty {
   color: #999;

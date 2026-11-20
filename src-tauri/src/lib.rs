@@ -56,6 +56,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::posts::load_posts,
+            commands::posts::load_post,
+            commands::posts::delete_post,
             commands::posts::save_post,
             commands::posts::import_image,
             commands::generate::generate_site,

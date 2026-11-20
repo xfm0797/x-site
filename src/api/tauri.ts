@@ -56,6 +56,16 @@ export async function loadPosts(): Promise<PostMeta[]> {
   return invoke<PostMeta[]>("load_posts");
 }
 
+/** 按 id 加载完整文章（含正文），编辑器打开已有文章时使用 */
+export async function loadPost(id: string): Promise<Post> {
+  return invoke<Post>("load_post", { id });
+}
+
+/** 删除文章及其资源目录 */
+export async function deletePost(id: string): Promise<void> {
+  return invoke<void>("delete_post", { id });
+}
+
 /** 保存文章（新增或更新） */
 export async function savePost(post: Post): Promise<Post> {
   return invoke<Post>("save_post", { post });

@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 
 pub mod platform;
 
@@ -39,36 +38,69 @@ fn deploy_local(site_dir: &str, config: &HashMap<String, String>) -> Result<Stri
     Ok(format!("Deployed to {}", target))
 }
 
-/// Git 部署：初始化 git 仓库并推送到远程
+/// Git 部署：初始化 git 仓库并推送到远程（可重复执行）
 async fn deploy_git(site_dir: &str, config: &HashMap<String, String>) -> Result<String, String> {
     let repo = config.get("repo").ok_or("Missing 'repo' URL in config")?;
     let branch = config.get("branch").map(|s| s.as_str()).unwrap_or("gh-pages");
     let message = config.get("message").map(|s| s.as_str()).unwrap_or("Deploy site");
 
-    // 逐条执行 git 命令
-    let git_commands = [
-        vec!["init"],
-        vec!["remote", "add", "origin", repo],
-        vec!["add", "."],
-        vec!["commit", "-m", message],
-        vec!["push", "-u", "origin", branch, "--force"],
-    ];
-
-    for args in &git_commands {
-        let output = Command::new("git")
-            .args(args)
-            .current_dir(site_dir)
-            .output()
-            .map_err(|e| format!("Failed to run git {}: {}", args.join(" "), e))?;
-
-        // commit 可能因为没有改动而失败，忽略该错误
-        if !output.status.success() && args[0] != "commit" {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("git {} failed: {}", args.join(" "), stderr.trim()));
-        }
+    // 仅首次部署初始化仓库
+    if !Path::new(site_dir).join(".git").exists() {
+        run_git(site_dir, &["init"]).await?;
     }
 
+    // origin 已存在则更新 URL，否则添加，保证重复部署幂等
+    if run_git(site_dir, &["remote", "get-url", "origin"]).await.is_ok() {
+        run_git(site_dir, &["remote", "set-url", "origin", repo]).await?;
+    } else {
+        run_git(site_dir, &["remote", "add", "origin", repo]).await?;
+    }
+
+    // 仓库级提交身份（仅在未配置时写入，不污染全局 git config）
+    if run_git(site_dir, &["config", "user.name"]).await.is_err() {
+        run_git(site_dir, &["config", "user.name", "x-site"]).await?;
+    }
+    if run_git(site_dir, &["config", "user.email"]).await.is_err() {
+        run_git(site_dir, &["config", "user.email", "x-site@localhost"]).await?;
+    }
+
+    run_git(site_dir, &["add", "."]).await?;
+
+    // commit：工作区无改动时跳过，其余错误如实上报
+    match run_git(site_dir, &["commit", "-m", message]).await {
+        Ok(_) => {}
+        Err(e) if e.contains("nothing to commit") => {}
+        Err(e) => return Err(e),
+    }
+
+    // 不使用 --force，避免覆盖远程历史；非快进推送时返回 git 原始错误
+    run_git(site_dir, &["push", "-u", "origin", branch]).await?;
+
     Ok(format!("Deployed to {} on branch {}", repo, branch))
+}
+
+/// 在站点目录执行 git 命令，成功返回 stdout，失败返回含 stdout/stderr 的错误
+async fn run_git(site_dir: &str, args: &[&str]) -> Result<String, String> {
+    let output = tokio::process::Command::new("git")
+        .args(args)
+        .current_dir(site_dir)
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run git {}: {}", args.join(" "), e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if output.status.success() {
+        Ok(stdout.to_string())
+    } else {
+        // git commit 的 "nothing to commit" 打在 stdout，需一并纳入错误文本
+        Err(format!(
+            "git {} failed: {}{}",
+            args.join(" "),
+            stdout.trim(),
+            stderr.trim()
+        ))
+    }
 }
 
 /// 递归复制目录

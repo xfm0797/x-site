@@ -19,6 +19,9 @@ export default {
     empty: "No posts yet. Click \"New Post\" to start.",
     published: "Published",
     draft: "Draft",
+    delete: "Delete",
+    deleteConfirm: "Delete post \"{title}\"? This cannot be undone.",
+    untitled: "(Untitled)",
   },
   editor: {
     toolbar: {
@@ -34,6 +37,8 @@ export default {
       publish: "Publish",
     },
     linkPrompt: "Enter link URL:",
+    loading: "Loading post...",
+    loadError: "Failed to load post: {msg}",
     meta: {
       title: "Post Info",
       titleLabel: "Title",
@@ -57,6 +62,7 @@ export default {
       pending: "Editing...",
       saving: "Saving...",
       saved: "Saved",
+      lastSaved: "Last saved",
       error: "Save failed: {msg}",
     },
   },

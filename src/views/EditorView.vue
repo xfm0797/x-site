@@ -11,7 +11,7 @@
  * - 元数据面板：title / slug / tags / category / cover / status
  */
 import { ref, watch, computed, onMounted, onBeforeUnmount, useTemplateRef } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute, useRouter, onBeforeRouteLeave } from "vue-router";
 import CodeMirrorEditor from "../components/editor/CodeMirrorEditor.vue";
 import MarkdownPreview from "../components/editor/MarkdownPreview.vue";
 import { usePostStore } from "../stores/post";
@@ -28,11 +28,23 @@ const store = usePostStore();
 
 // ============================================================
 // 初始化文章
+// 新文章（无路由 id）：创建空白草稿
+// 已有文章（有路由 id）：必须从数据库加载正文，否则空白草稿会被自动保存覆盖原文
 // ============================================================
-const postId = (route.params.id as string) || crypto.randomUUID();
+const routeId = route.params.id as string | undefined;
+const postId = routeId || crypto.randomUUID();
+const loadError = ref("");
+// 用户手动编辑过 slug 后不再随标题自动同步；已有文章默认保留既有 slug
+const slugTouched = ref(Boolean(routeId));
 
-if (!store.current || store.current.id !== postId) {
-  store.initNewPost(postId);
+if (!routeId) {
+  if (!store.current || store.current.id !== postId) {
+    store.initNewPost(postId);
+  }
+} else if (!store.current || store.current.id !== routeId) {
+  store.loadExisting(routeId).catch((e) => {
+    loadError.value = String(e?.message ?? e);
+  });
 }
 
 // 局部引用 — computed 返回 store.current，用于只读访问和判断
@@ -69,9 +81,10 @@ watch(
   () => store.current?.title,
   (title) => {
     if (!store.current || title === undefined) return;
-    // 同步 slug：如果用户没手动改过 slug，自动从 title 生成
-    // 这里简化为始终自动同步（Gridea 行为）
-    store.current.slug = slugify(title);
+    // 仅在用户未手动改过 slug 时，才从 title 自动生成
+    if (!slugTouched.value) {
+      store.current.slug = slugify(title);
+    }
     store.markDirty();
   },
 );
@@ -259,6 +272,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener("beforeunload", beforeUnload);
 });
+// 路由切换（侧边栏导航等）前等待保存落盘，避免防抖未触发时丢稿
+onBeforeRouteLeave(async () => {
+  await store.saveNow();
+});
 
 // ============================================================
 // 状态栏文案
@@ -309,6 +326,12 @@ const statusBarText = computed(() => {
       </div>
     </header>
 
+    <!-- ============ 已有文章加载状态 ============ -->
+    <p v-if="store.loadingPost" class="load-banner">{{ t("editor.loading") }}</p>
+    <p v-else-if="loadError" class="load-banner is-error">
+      {{ t("editor.loadError", { msg: loadError }) }}
+    </p>
+
     <!-- ============ 主体：编辑 + 预览 ============ -->
     <div class="editor-body">
       <div class="editor-pane">
@@ -343,6 +366,7 @@ const statusBarText = computed(() => {
             type="text"
             :placeholder="t('editor.meta.slugPlaceholder')"
             class="input"
+            @input="slugTouched = true"
           />
         </label>
 
@@ -403,7 +427,7 @@ const statusBarText = computed(() => {
     <footer class="status-bar">
       <span class="status-text">{{ statusBarText }}</span>
       <span v-if="store.lastSavedAt" class="status-time">
-        最近保存：{{ store.lastSavedAt.toLocaleTimeString() }}
+        {{ t("editor.status.lastSaved") }}：{{ store.lastSavedAt.toLocaleTimeString() }}
       </span>
     </footer>
   </div>
@@ -481,6 +505,20 @@ const statusBarText = computed(() => {
 }
 .btn-text.btn-secondary {
   background: transparent;
+}
+
+/* ============ 加载横幅 ============ */
+.load-banner {
+  margin: 0;
+  padding: 8px 16px;
+  font-size: 12px;
+  color: #6b7280;
+  background: #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
+}
+.load-banner.is-error {
+  color: #b91c1c;
+  background: #fef2f2;
 }
 
 /* ============ 主体三栏 ============ */

@@ -26,12 +26,37 @@ use tauri::{AppHandle, Emitter, Manager};
 // 主入口
 // ============================================================
 
+/// 清理生成器管理的产物目录与文件（输出目录中的其他文件保持不变）
+fn clean_output(output_path: &Path) {
+    const MANAGED_DIRS: &[&str] = &["posts", "tags", "categories", "page", "assets"];
+    const MANAGED_FILES: &[&str] = &[
+        "index.html",
+        "archive.html",
+        "links.html",
+        "sitemap.xml",
+        "feed.xml",
+        "robots.txt",
+    ];
+    for d in MANAGED_DIRS {
+        let p = output_path.join(d);
+        if p.exists() {
+            let _ = fs::remove_dir_all(&p);
+        }
+    }
+    for f in MANAGED_FILES {
+        let p = output_path.join(f);
+        if p.exists() {
+            let _ = fs::remove_file(&p);
+        }
+    }
+}
+
 /// 生成静态站点到 output_dir
 ///
 /// 步骤：
-/// 1. 加载已发布文章 + 站点配置
-/// 2. 加载主题模板（Tera 实例）
-/// 3. 复制主题 assets 到 output/assets
+/// 1. 加载已发布文章 + 站点配置（含 slug 冲突检测）
+/// 2. 加载主题模板（Tera 实例），清理旧产物
+/// 3. 复制主题 assets 与用户资源（文章插图、Logo）到 output/assets
 /// 4. 并发渲染文章页（rayon）
 /// 5. 渲染首页（分页）、归档页、标签页、分类页、友情链接页
 /// 6. 生成 sitemap.xml、feed.xml、robots.txt
@@ -56,20 +81,29 @@ pub fn generate(
         return Err("No published posts found".into());
     }
 
+    // 同 slug 的文章会互相覆盖 HTML，生成前直接报错并指出冲突
+    let mut seen_slugs = std::collections::HashSet::new();
+    for post in &posts {
+        let slug = post_slug_or_id(post);
+        if !seen_slugs.insert(slug) {
+            return Err(format!(
+                "Duplicate post slug '{}': please change the slug of one of the posts before generating",
+                slug
+            ));
+        }
+    }
+
     // ----------------------------------------------------------
     // 2. 准备 Tera 模板
     // ----------------------------------------------------------
     emit_progress(app, current, total, "Loading theme templates...");
-    let theme_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())?
-        .join("themes")
-        .join(&site_config.theme);
+    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let theme_dir = app_data_dir.join("themes").join(&site_config.theme);
     let tera = render::load_theme(&theme_dir)?;
 
-    // 输出目录结构
+    // 输出目录结构（先清理生成器管理的旧产物，避免删文/改 slug 后残留幽灵页面）
     let output_path = Path::new(output_dir);
+    clean_output(output_path);
     let posts_dir = output_path.join("posts");
     let tags_dir = output_path.join("tags");
     let cats_dir = output_path.join("categories");
@@ -87,6 +121,12 @@ pub fn generate(
     if theme_assets_dir.exists() {
         assets::copy_dir(&theme_assets_dir, &out_assets_dir)
             .map_err(|e| format!("copy assets: {e}"))?;
+    }
+    // 文章插图、Logo 等用户资源（app_data/assets/）一并复制，修复生成站图片 404
+    let user_assets_dir = app_data_dir.join("assets");
+    if user_assets_dir.exists() {
+        assets::copy_dir(&user_assets_dir, &out_assets_dir)
+            .map_err(|e| format!("copy post assets: {e}"))?;
     }
 
     // ----------------------------------------------------------

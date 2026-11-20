@@ -21,6 +21,9 @@ export default {
     empty: "暂无文章，点击「新建文章」开始",
     published: "已发布",
     draft: "草稿",
+    delete: "删除",
+    deleteConfirm: "确定删除文章「{title}」吗？该操作不可恢复。",
+    untitled: "(未命名)",
   },
   // 编辑器
   editor: {
@@ -37,6 +40,8 @@ export default {
       publish: "发布",
     },
     linkPrompt: "输入链接 URL：",
+    loading: "正在加载文章...",
+    loadError: "文章加载失败：{msg}",
     meta: {
       title: "文章信息",
       titleLabel: "标题",
@@ -60,6 +65,7 @@ export default {
       pending: "编辑中...",
       saving: "正在保存...",
       saved: "已保存",
+      lastSaved: "最近保存",
       error: "保存失败：{msg}",
     },
   },

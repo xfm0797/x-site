@@ -146,6 +146,16 @@ pub fn import_theme(
         "Invalid theme package: theme.json not found in zip".to_string()
     })?;
 
+    // 主题名仅允许字母数字、连字符、下划线，防止通过包名进行路径遍历
+    let valid_name = !theme_name.is_empty()
+        && theme_name.len() <= 64
+        && theme_name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    if !valid_name {
+        return Err(format!("Invalid theme name: {theme_name}"));
+    }
+
     // 如果根目录的 theme.json 没有 parent，主题名用 zip 文件名
     // （上面 fallback 已处理）
 
@@ -166,6 +176,11 @@ pub fn import_theme(
             continue;
         }
 
+        // Zip Slip 防护：拒绝含 `..`、绝对路径等不安全条目
+        if entry.enclosed_name().is_none() {
+            return Err(format!("Unsafe path in zip entry: {entry_name}"));
+        }
+
         // 去除 zip 内的顶层目录前缀（如果它等于主题名）
         let rel_path = if entry_name.starts_with(&format!("{}/", theme_name)) {
             entry_name[theme_name.len() + 1..].to_string()
@@ -183,6 +198,11 @@ pub fn import_theme(
         }
 
         let out_path = target_dir.join(&rel_path);
+
+        // 双保险：最终输出路径必须位于目标主题目录内
+        if !out_path.starts_with(&target_dir) {
+            return Err(format!("Entry escapes theme directory: {rel_path}"));
+        }
 
         if entry.is_dir() {
             fs::create_dir_all(&out_path).map_err(|e| e.to_string())?;

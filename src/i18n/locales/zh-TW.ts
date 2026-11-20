@@ -19,6 +19,9 @@ export default {
     empty: "尚無文章，點擊「新增文章」開始",
     published: "已發布",
     draft: "草稿",
+    delete: "刪除",
+    deleteConfirm: "確定刪除文章「{title}」嗎？該操作無法復原。",
+    untitled: "(未命名)",
   },
   editor: {
     toolbar: {
@@ -34,6 +37,8 @@ export default {
       publish: "發布",
     },
     linkPrompt: "輸入連結 URL：",
+    loading: "正在載入文章...",
+    loadError: "文章載入失敗：{msg}",
     meta: {
       title: "文章資訊",
       titleLabel: "標題",
@@ -57,6 +62,7 @@ export default {
       pending: "編輯中...",
       saving: "儲存中...",
       saved: "已儲存",
+      lastSaved: "最近儲存",
       error: "儲存失敗：{msg}",
     },
   },
