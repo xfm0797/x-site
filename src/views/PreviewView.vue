@@ -10,6 +10,9 @@ import {
   startPreview,
   stopPreview,
   getPreviewPort,
+  getOutputDir,
+  saveOutputDir,
+  pickOutputDir,
 } from "../api/tauri";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-shell";
@@ -37,6 +40,11 @@ onMounted(async () => {
   }>("generate://progress", (e) => {
     progress.value = e.payload;
   });
+  try {
+    outputDir.value = await getOutputDir();
+  } catch {
+    /* 浏览器开发环境无后端，忽略 */
+  }
   const port = await getPreviewPort();
   if (port > 0) {
     previewPort.value = port;
@@ -48,11 +56,34 @@ onBeforeUnmount(() => {
   unlistenProgress?.();
 });
 
+/** 持久化输出目录（失败不阻断生成/预览） */
+async function persistOutputDir() {
+  const dir = outputDir.value.trim();
+  if (!dir) return;
+  try {
+    await saveOutputDir(dir);
+  } catch {
+    /* 忽略持久化失败 */
+  }
+}
+
+async function browseOutputDir() {
+  try {
+    const dir = await pickOutputDir();
+    if (!dir) return;
+    outputDir.value = dir;
+    await persistOutputDir();
+  } catch (e) {
+    message.value = t("common.error", { msg: String(e) });
+  }
+}
+
 async function generate() {
   if (!outputDir.value) {
     message.value = t("preview.errorEmpty");
     return;
   }
+  void persistOutputDir();
   generating.value = true;
   message.value = "";
   progress.value = { current: 0, total: 0, percent: 0, file: "" };
@@ -71,6 +102,7 @@ async function startLocalPreview() {
     message.value = t("preview.errorEmpty");
     return;
   }
+  void persistOutputDir();
   previewStarting.value = true;
   message.value = "";
   try {
@@ -125,7 +157,16 @@ function refreshIframe() {
     <section>
       <h2>{{ t("preview.generate") }}</h2>
       <label>{{ t("preview.outputDir") }}</label>
-      <input v-model="outputDir" :placeholder="t('preview.outputPlaceholder')" />
+      <div class="dir-row">
+        <input
+          v-model="outputDir"
+          :placeholder="t('preview.outputPlaceholder')"
+          @change="persistOutputDir"
+        />
+        <button class="btn-secondary" @click="browseOutputDir">
+          {{ t("common.browse") }}
+        </button>
+      </div>
 
       <button class="btn-primary" :disabled="generating" @click="generate">
         {{ generating ? t("preview.generating") : t("preview.generateBtn") }}
@@ -191,6 +232,9 @@ h1 { font-size: 22px; font-weight: 700; margin-bottom: 20px; }
 h2 { margin-bottom: 12px; font-size: 16px; }
 label { display: block; font-size: 13px; color: #666; margin: 8px 0 4px; }
 input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 8px; box-sizing: border-box; }
+.dir-row { display: flex; gap: 8px; align-items: flex-start; }
+.dir-row input { flex: 1; }
+.dir-row .btn-secondary { padding: 8px 14px; white-space: nowrap; }
 .btn-primary { padding: 8px 20px; background: #4a9eff; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 

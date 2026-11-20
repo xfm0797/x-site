@@ -1,7 +1,23 @@
 use crate::db::DbState;
 use crate::error::AppResult;
 use crate::generator::{self, ProgressSink};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, State};
+
+/// 读取静态站点输出目录（预览 / 同步页共享）
+#[tauri::command]
+pub fn get_output_dir(db: State<'_, DbState>) -> Result<String, String> {
+    let cfg = crate::db::config::load(&db).map_err(|e| e.to_frontend())?;
+    Ok(cfg.output_dir)
+}
+
+/// 保存静态站点输出目录（只回写该字段，避免覆盖其他配置）
+#[tauri::command]
+pub fn save_output_dir(db: State<'_, DbState>, dir: String) -> Result<(), String> {
+    let mut cfg = crate::db::config::load(&db).map_err(|e| e.to_frontend())?;
+    cfg.output_dir = dir;
+    crate::db::config::save(&db, &cfg).map_err(|e| e.to_frontend())?;
+    Ok(())
+}
 
 /// 把 AppHandle 适配为 generator::ProgressSink（向前端 emit 进度事件）
 struct TauriProgress<'a>(&'a AppHandle);

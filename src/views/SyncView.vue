@@ -9,6 +9,9 @@ import {
   getThemeSettings,
   generateSite,
   deploy,
+  getOutputDir,
+  saveOutputDir,
+  pickOutputDir,
   type DeployTarget,
 } from "../api/tauri";
 import { useI18n } from "../i18n";
@@ -37,16 +40,43 @@ onMounted(async () => {
     targets.value = cfg.deploy_targets || [];
   } catch (e) {
     message.value = `加载失败：${e}`;
-  } finally {
-    loading.value = false;
   }
+  try {
+    outputDir.value = await getOutputDir();
+  } catch {
+    /* 浏览器开发环境无后端，忽略 */
+  }
+  loading.value = false;
 });
+
+/** 持久化输出目录（失败不阻断同步） */
+async function persistOutputDir() {
+  const dir = outputDir.value.trim();
+  if (!dir) return;
+  try {
+    await saveOutputDir(dir);
+  } catch {
+    /* 忽略持久化失败 */
+  }
+}
+
+async function browseOutputDir() {
+  try {
+    const dir = await pickOutputDir();
+    if (!dir) return;
+    outputDir.value = dir;
+    await persistOutputDir();
+  } catch (e) {
+    message.value = t("common.error", { msg: String(e) });
+  }
+}
 
 async function startSync() {
   if (!outputDir.value) {
     message.value = t("sync.errorEmpty");
     return;
   }
+  void persistOutputDir();
   if (targets.value.length === 0) {
     message.value = t("sync.noTargets");
     return;
@@ -104,7 +134,16 @@ async function startSync() {
       <!-- 输出目录 -->
       <section class="card">
         <label>{{ t("sync.outputDir") }}</label>
-        <input v-model="outputDir" :placeholder="t('preview.outputPlaceholder')" />
+        <div class="dir-row">
+          <input
+            v-model="outputDir"
+            :placeholder="t('preview.outputPlaceholder')"
+            @change="persistOutputDir"
+          />
+          <button class="btn-browse" @click="browseOutputDir">
+            {{ t("common.browse") }}
+          </button>
+        </div>
       </section>
 
       <!-- 目标概览 -->
@@ -152,6 +191,10 @@ h1 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
 .card h2 { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
 label { display: block; font-size: 13px; color: #666; margin: 8px 0 4px; }
 input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+.dir-row { display: flex; gap: 8px; }
+.dir-row input { flex: 1; }
+.btn-browse { padding: 8px 14px; background: #fff; color: #374151; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+.btn-browse:hover { background: #f3f4f6; }
 
 .empty { padding: 20px; text-align: center; color: #9ca3af; font-size: 13px; }
 .target-item {

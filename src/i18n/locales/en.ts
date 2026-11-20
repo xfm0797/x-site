@@ -214,5 +214,6 @@ export default {
   common: {
     error: "Error: {msg}",
     confirmDelete: "Delete this item? This action cannot be undone.",
+    browse: "Browse...",
   },
 } as const;

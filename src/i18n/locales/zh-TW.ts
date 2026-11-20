@@ -214,5 +214,6 @@ export default {
   common: {
     error: "錯誤：{msg}",
     confirmDelete: "確定刪除？此操作無法復原。",
+    browse: "瀏覽...",
   },
 } as const;

@@ -350,6 +350,7 @@ pub fn save_theme_settings(
     let old = db::config::load(&db).map_err(|e| e.to_frontend())?;
     config.menus = old.menus;
     config.deploy_targets = old.deploy_targets;
+    config.output_dir = old.output_dir;
     db::config::save(&db, &config).map_err(|e| e.to_frontend())?;
     let _ = app.emit("settings://changed", &config.theme);
     Ok(())

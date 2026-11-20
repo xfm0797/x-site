@@ -105,6 +105,22 @@ export async function generateSite(outputDir: string): Promise<string> {
   return invoke<string>("generate_site", { outputDir });
 }
 
+/** 读取上次使用的输出目录 */
+export async function getOutputDir(): Promise<string> {
+  return invoke<string>("get_output_dir");
+}
+
+/** 保存输出目录（只回写该字段） */
+export async function saveOutputDir(dir: string): Promise<void> {
+  return invoke<void>("save_output_dir", { dir });
+}
+
+/** 通过系统对话框选择输出目录；用户取消返回 null */
+export async function pickOutputDir(): Promise<string | null> {
+  const selected = await openDialog({ directory: true, multiple: false });
+  return (selected as string) || null;
+}
+
 /** 部署站点 */
 export async function deploy(
   siteDir: string,
@@ -225,6 +241,8 @@ export interface SiteConfig {
   ads: AdConfig;
   comments: CommentsConfig;
   icp: string;
+  /** 静态站点输出目录（预览 / 同步页共享） */
+  output_dir: string;
   /** 部署目标列表（多平台部署） */
   deploy_targets: DeployTarget[];
 }

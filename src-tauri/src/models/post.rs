@@ -201,6 +201,9 @@ pub struct SiteConfig {
     /// ICP 备案号（中国大陆站点底部显示）
     #[serde(default)]
     pub icp: String,
+    /// 静态站点输出目录（预览 / 同步页共享，留空表示未设置）
+    #[serde(default)]
+    pub output_dir: String,
     /// 部署目标列表（多平台部署，见 DeployTarget 约定）
     #[serde(default)]
     pub deploy_targets: Vec<DeployTarget>,
@@ -223,6 +226,7 @@ impl Default for SiteConfig {
             ads: AdConfig::default(),
             comments: CommentsConfig::default(),
             icp: String::new(),
+            output_dir: String::new(),
             deploy_targets: Vec::new(),
         }
     }

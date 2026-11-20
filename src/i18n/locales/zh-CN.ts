@@ -222,5 +222,6 @@ export default {
   common: {
     error: "错误：{msg}",
     confirmDelete: "确定删除？此操作不可撤销。",
+    browse: "浏览...",
   },
 } as const;
