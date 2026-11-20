@@ -89,6 +89,9 @@ export default {
     addTitle: "新增自定义菜单",
     addBtn: "+ 添加",
     noMenus: "无启用菜单",
+    fillRequired: "请填写标题和链接",
+    saved: "已保存",
+    saveFailed: "保存失败：{msg}",
   },
   // 标签
   tags: {
@@ -218,5 +221,6 @@ export default {
   // 通用
   common: {
     error: "错误：{msg}",
+    confirmDelete: "确定删除？此操作不可撤销。",
   },
 } as const;

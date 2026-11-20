@@ -85,6 +85,9 @@ export default {
     addTitle: "Add Custom Menu",
     addBtn: "+ Add",
     noMenus: "No enabled menus",
+    fillRequired: "Please fill in both label and URL",
+    saved: "Saved",
+    saveFailed: "Save failed: {msg}",
   },
   tags: {
     title: "Tags",
@@ -210,5 +213,6 @@ export default {
   },
   common: {
     error: "Error: {msg}",
+    confirmDelete: "Delete this item? This action cannot be undone.",
   },
 } as const;

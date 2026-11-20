@@ -101,6 +101,7 @@ function saveTarget() {
 }
 
 function removeTarget(i: number) {
+  if (!window.confirm(t("common.confirmDelete"))) return;
   targets.value.splice(i, 1);
   void saveTargets();
 }

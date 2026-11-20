@@ -68,13 +68,13 @@ async function flush() {
   try {
     await saveMenus(menus.value);
     if (seq !== saveSeq) return;
-    message.value = "已保存";
+    message.value = t("menus.saved");
     setTimeout(() => {
       if (seq === saveSeq) message.value = "";
     }, 2000);
   } catch (e: any) {
     if (seq !== saveSeq) return;
-    message.value = `保存失败：${String(e?.message ?? e)}`;
+    message.value = t("menus.saveFailed", { msg: String(e?.message ?? e) });
   }
 }
 
@@ -125,7 +125,7 @@ function addMenu() {
   const label = newLabel.value.trim();
   const url = newUrl.value.trim();
   if (!label || !url) {
-    message.value = "请填写标题和链接";
+    message.value = t("menus.fillRequired");
     return;
   }
   menus.value.push({ label, url, builtin: false, enabled: true });
@@ -135,6 +135,7 @@ function addMenu() {
 }
 
 function removeMenu(index: number) {
+  if (!window.confirm(t("common.confirmDelete"))) return;
   menus.value.splice(index, 1);
   persist(true);
 }

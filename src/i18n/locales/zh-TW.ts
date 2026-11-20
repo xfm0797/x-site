@@ -85,6 +85,9 @@ export default {
     addTitle: "新增自訂選單",
     addBtn: "+ 新增",
     noMenus: "無啟用選單",
+    fillRequired: "請填寫標題和連結",
+    saved: "已儲存",
+    saveFailed: "儲存失敗：{msg}",
   },
   tags: {
     title: "標籤",
@@ -210,5 +213,6 @@ export default {
   },
   common: {
     error: "錯誤：{msg}",
+    confirmDelete: "確定刪除？此操作無法復原。",
   },
 } as const;
