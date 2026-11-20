@@ -117,6 +117,9 @@ fn clean_output(
 struct GenState {
     /// 上次生成时的主题名——不同主题必须全量重建
     theme: String,
+    /// 上次生成时的站点配置指纹（标题/菜单等变化时，已跳过的文章页也需重渲染）
+    #[serde(default)]
+    site: String,
     /// 每篇文章的 { slug, content_hash }，用于跳过未变文章的渲染
     #[serde(default)]
     posts: std::collections::BTreeMap<String, PostHash>,
@@ -192,6 +195,14 @@ pub fn generate(
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or_default();
     let theme_changed = prev_state.theme.is_empty() || prev_state.theme != site_config.theme;
+    // 站点配置指纹：标题/描述/菜单等变更后，即使文章内容未变也要重渲染文章页
+    // 先转成 serde_json::Value（对象默认 BTreeMap）再序列化，保证键顺序稳定
+    let site_hash = {
+        let value = serde_json::to_value(&site_config)
+            .map_err(|e| AppError::Db(format!("site_config: {e}")))?;
+        content_hash(&value.to_string())
+    };
+    let site_changed = prev_state.site.is_empty() || prev_state.site != site_hash;
 
     // ----------------------------------------------------------
     // 3. 输出目录准备
@@ -235,6 +246,7 @@ pub fn generate(
     let tera = Arc::new(tera);
     let mut next_state = GenState {
         theme: site_config.theme.clone(),
+        site: site_hash,
         posts: BTreeMap::new(),
     };
 
@@ -248,8 +260,9 @@ pub fn generate(
             let slug_owned = slug.to_string();
             let hash = content_hash(&post.content);
 
-            // 跳过条件：主题未变 + 同 slug 的 hash 相同 + 旧 HTML 文件存在
+            // 跳过条件：主题未变 + 站点配置未变 + 同 slug 的 hash 相同 + 旧 HTML 文件存在
             let should_skip = !theme_changed
+                && !site_changed
                 && prev_state
                     .posts
                     .get(&post.id)
@@ -951,5 +964,42 @@ mod integration_tests {
         generate(&paths, &NullProgress, &db, output.path().to_str().unwrap()).unwrap();
         let state_json2 = std::fs::read_to_string(&state_path).unwrap();
         assert_eq!(state_json, state_json2, "内容未变 → state 不应变化");
+    }
+
+    // --------------------------------------------------------
+    // 增量生成：站点配置变更后，已跳过的文章页也必须重渲染
+    // --------------------------------------------------------
+
+    #[test]
+    fn site_config_change_rerenders_skipped_posts() {
+        let themes = TempDir::new().unwrap();
+        let t = themes.path().join("minimal");
+        std::fs::create_dir_all(&t).unwrap();
+        prepare_theme(&t);
+
+        let db = prepare_db();
+        let output = TempDir::new().unwrap();
+        let paths = GeneratorPaths {
+            themes_dir: themes.path().to_path_buf(),
+            user_assets_dir: TempDir::new().unwrap().path().to_path_buf(),
+        };
+        let out = output.path();
+
+        generate(&paths, &NullProgress, &db, out.to_str().unwrap()).unwrap();
+        let post_html = std::fs::read_to_string(out.join("posts/first-post.html")).unwrap();
+        assert!(post_html.contains("Integration Blog"));
+
+        // 只改站点标题（文章内容不变）
+        let mut cfg = crate::db::config::load(&db).unwrap();
+        cfg.title = "Renamed Blog".into();
+        crate::db::config::save(&db, &cfg).unwrap();
+
+        generate(&paths, &NullProgress, &db, out.to_str().unwrap()).unwrap();
+
+        let post_html2 = std::fs::read_to_string(out.join("posts/first-post.html")).unwrap();
+        assert!(
+            post_html2.contains("Renamed Blog"),
+            "站点标题变更后文章页应重渲染: {post_html2}"
+        );
     }
 }
