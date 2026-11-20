@@ -100,6 +100,37 @@ export async function pickAndImportImage(
   return [relPath, filename];
 }
 
+/** Markdown 批量导入结果（与 Rust ImportSummary 对应） */
+export interface ImportSummary {
+  /** 成功导入数量 */
+  imported: number;
+  /** 被跳过的文件路径（非 Markdown 或读取失败） */
+  skipped: string[];
+  /** 新导入文章元数据 */
+  posts: PostMeta[];
+}
+
+/**
+ * 通过对话框选择多个 Markdown 文件
+ * @returns 选中的路径列表；用户取消返回 null
+ */
+export async function pickMarkdownFiles(): Promise<string[] | null> {
+  const selected = await openDialog({
+    multiple: true,
+    filters: [{ name: "Markdown", extensions: ["md", "markdown"] }],
+  });
+  if (!selected) return null;
+  const list = Array.isArray(selected) ? selected : [selected];
+  return list as string[];
+}
+
+/** 把本地 Markdown 文件批量导入为草稿文章 */
+export async function importMarkdown(
+  paths: string[],
+): Promise<ImportSummary> {
+  return invoke<ImportSummary>("import_markdown", { paths });
+}
+
 /** 生成静态站点到指定目录 */
 export async function generateSite(outputDir: string): Promise<string> {
   return invoke<string>("generate_site", { outputDir });

@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { usePostStore } from "../stores/post";
 import { useI18n } from "../i18n";
+import { pickMarkdownFiles, importMarkdown } from "../api/tauri";
 
 const router = useRouter();
 const store = usePostStore();
@@ -11,6 +12,7 @@ const { t } = useI18n();
 const keyword = ref("");
 const statusFilter = ref<"all" | "published" | "draft">("all");
 const sortBy = ref<"updated" | "created" | "title">("updated");
+const importing = ref(false);
 
 /** 搜索（标题/slug/分类/标签）+ 状态筛选 + 排序 */
 const visiblePosts = computed(() => {
@@ -49,13 +51,39 @@ async function onDelete(post: { id: string; title: string }) {
     window.alert(t("common.error", { msg: String(e?.message ?? e) }));
   }
 }
+
+/** 批量导入本地 Markdown 文件为草稿文章 */
+async function onImportMarkdown() {
+  if (importing.value) return;
+  try {
+    const files = await pickMarkdownFiles();
+    if (!files || !files.length) return;
+    importing.value = true;
+    const summary = await importMarkdown(files);
+    await store.fetchPosts();
+    let msg = t("home.importDone", { n: summary.imported });
+    if (summary.skipped.length) {
+      msg += `\n${t("home.importSkipped", { n: summary.skipped.length })}`;
+    }
+    window.alert(msg);
+  } catch (e: any) {
+    window.alert(t("common.error", { msg: String(e?.message ?? e) }));
+  } finally {
+    importing.value = false;
+  }
+}
 </script>
 
 <template>
   <div class="home">
     <div class="toolbar">
       <h1>{{ t("home.title") }}</h1>
-      <button @click="router.push('/editor')">{{ t("home.newPost") }}</button>
+      <div class="actions">
+        <button class="secondary" :disabled="importing" @click="onImportMarkdown">
+          {{ importing ? t("home.importing") : t("home.import") }}
+        </button>
+        <button @click="router.push('/editor')">{{ t("home.newPost") }}</button>
+      </div>
     </div>
 
     <p v-if="store.listError" class="list-error">
@@ -123,6 +151,19 @@ async function onDelete(post: { id: string; title: string }) {
   border: none;
   border-radius: 4px;
   cursor: pointer;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+}
+.toolbar button.secondary {
+  background: #fff;
+  color: #4a9eff;
+  border: 1px solid #4a9eff;
+}
+.toolbar button:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 .filters {
   display: flex;

@@ -28,6 +28,10 @@ export default {
     sortCreated: "建立時間",
     sortTitle: "標題",
     noMatch: "沒有符合的文章",
+    import: "匯入 Markdown",
+    importing: "匯入中...",
+    importDone: "已匯入 {n} 篇文章（草稿）",
+    importSkipped: "略過 {n} 個檔案",
   },
   editor: {
     toolbar: {

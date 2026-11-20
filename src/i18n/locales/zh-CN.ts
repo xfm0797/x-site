@@ -30,6 +30,10 @@ export default {
     sortCreated: "创建时间",
     sortTitle: "标题",
     noMatch: "没有匹配的文章",
+    import: "导入 Markdown",
+    importing: "导入中...",
+    importDone: "已导入 {n} 篇文章（草稿）",
+    importSkipped: "跳过 {n} 个文件",
   },
   // 编辑器
   editor: {

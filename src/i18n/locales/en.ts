@@ -28,6 +28,10 @@ export default {
     sortCreated: "Created",
     sortTitle: "Title",
     noMatch: "No matching posts",
+    import: "Import Markdown",
+    importing: "Importing...",
+    importDone: "Imported {n} post(s) as drafts",
+    importSkipped: "Skipped {n} file(s)",
   },
   editor: {
     toolbar: {
