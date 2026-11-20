@@ -2,7 +2,7 @@
 
 本文件记录 x-site 的版本变更，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [0.1.11] - 2026-11-20
+## [0.1.13] - 2026-11-20
 
 首个纳入版本记录与 CI 门禁的发布版本。
 

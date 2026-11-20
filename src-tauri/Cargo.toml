@@ -1,6 +1,6 @@
 [package]
 name = "x-site"
-version = "0.1.12"
+version = "0.1.13"
 description = "Cross-platform static blog desktop client"
 authors = ["XFM"]
 edition = "2021"
