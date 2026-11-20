@@ -2,17 +2,15 @@
 //!
 //! 配置序列化为 TOML 存储，表中固定 `key="main"`。
 
+use super::DbState;
 use crate::error::AppResult;
 use crate::models::post::SiteConfig;
-use super::DbState;
 
 /// 从 site_config 表读取主配置；缺失时返回默认值
 pub fn load(db: &DbState) -> AppResult<SiteConfig> {
     let conn = db.0.lock()?;
     let mut stmt = conn.prepare("SELECT value FROM site_config WHERE key = ?1")?;
-    let row: Option<String> = stmt
-        .query_row(rusqlite::params!["main"], |r| r.get(0))
-        .ok();
+    let row: Option<String> = stmt.query_row(rusqlite::params!["main"], |r| r.get(0)).ok();
     match row {
         Some(toml_str) => Ok(toml::from_str::<SiteConfig>(&toml_str)?),
         None => Ok(SiteConfig::default()),

@@ -7,11 +7,7 @@ use std::path::Path;
 /// 生成 sitemap.xml
 ///
 /// 包含：首页 + 所有文章页（per-post URL）
-pub fn write_sitemap(
-    output: &Path,
-    config: &SiteConfig,
-    posts: &[Post],
-) -> std::io::Result<()> {
+pub fn write_sitemap(output: &Path, config: &SiteConfig, posts: &[Post]) -> std::io::Result<()> {
     let base = config.url.trim_end_matches('/');
     let mut urls = Vec::new();
     urls.push(format!(
@@ -23,11 +19,7 @@ pub fn write_sitemap(
         base
     ));
     for p in posts {
-        let slug = if p.slug.is_empty() {
-            &p.id
-        } else {
-            &p.slug
-        };
+        let slug = if p.slug.is_empty() { &p.id } else { &p.slug };
         let url = format!("{}/posts/{}.html", base, slug);
         urls.push(format!(
             r#"  <url>
@@ -51,24 +43,15 @@ pub fn write_sitemap(
 }
 
 /// 生成 RSS feed.xml (RSS 2.0)
-pub fn write_rss(
-    output: &Path,
-    config: &SiteConfig,
-    posts: &[Post],
-) -> std::io::Result<()> {
+pub fn write_rss(output: &Path, config: &SiteConfig, posts: &[Post]) -> std::io::Result<()> {
     let base = config.url.trim_end_matches('/');
     let build_date = chrono::Utc::now().format("%a, %d %b %Y %H:%M:%S +0000");
     let items: Vec<String> = posts
         .iter()
         .map(|p| {
-            let slug = if p.slug.is_empty() {
-                &p.id
-            } else {
-                &p.slug
-            };
+            let slug = if p.slug.is_empty() { &p.id } else { &p.slug };
             let link = format!("{}/posts/{}.html", base, slug);
-            let pub_date =
-                format_rfc822_date(&p.created_at);
+            let pub_date = format_rfc822_date(&p.created_at);
             format!(
                 r#"    <item>
       <title>{}</title>
@@ -110,15 +93,9 @@ pub fn write_rss(
 }
 
 /// 生成 robots.txt
-pub fn write_robots(
-    output: &Path,
-    config: &SiteConfig,
-) -> std::io::Result<()> {
+pub fn write_robots(output: &Path, config: &SiteConfig) -> std::io::Result<()> {
     let base = config.url.trim_end_matches('/');
-    let body = format!(
-        "User-agent: *\nAllow: /\n\nSitemap: {}/sitemap.xml\n",
-        base
-    );
+    let body = format!("User-agent: *\nAllow: /\n\nSitemap: {}/sitemap.xml\n", base);
     fs::write(output.join("robots.txt"), body)
 }
 

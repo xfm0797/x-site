@@ -146,7 +146,8 @@ fn posts_tags_roundtrip_as_json() {
 fn config_load_empty_returns_default() {
     let db = new_mem_db();
     let cfg = db::config::load(&db).expect("load empty");
-    assert_eq!(cfg.title, "");
+    // 空表 → 返回 SiteConfig::default()
+    assert_eq!(cfg.title, SiteConfig::default().title);
     assert_eq!(cfg.posts_per_page, 10); // 常规默认值
 }
 
@@ -186,11 +187,14 @@ fn config_save_overwrites_existing() {
     };
     db::config::save(&db, &cfg2).unwrap();
 
-    let conn = db.0.lock().unwrap();
-    let n: i64 = conn
-        .query_row("SELECT COUNT(*) FROM site_config", [], |r| r.get(0))
-        .unwrap();
-    assert_eq!(n, 1, "ON CONFLICT UPDATE 应保持单行");
+    // 必须在独立作用域内释放 MutexGuard，否则后续 db::config::load 二次加锁会死锁
+    {
+        let conn = db.0.lock().unwrap();
+        let n: i64 = conn
+            .query_row("SELECT COUNT(*) FROM site_config", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 1, "ON CONFLICT UPDATE 应保持单行");
+    }
 
     let loaded = db::config::load(&db).unwrap();
     assert_eq!(loaded.title, "V2");

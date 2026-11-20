@@ -41,8 +41,7 @@ pub fn list_themes(
             continue;
         }
         let content = fs::read_to_string(&meta_path).map_err(|e| e.to_string())?;
-        let mut meta: ThemeMeta =
-            serde_json::from_str(&content).unwrap_or_default();
+        let mut meta: ThemeMeta = serde_json::from_str(&content).unwrap_or_default();
         // 目录名作为唯一 name
         let dir_name = path
             .file_name()
@@ -51,7 +50,10 @@ pub fn list_themes(
             .to_string();
         meta.name = dir_name;
         let is_active = meta.name == active;
-        themes.push(Theme { meta, active: is_active });
+        themes.push(Theme {
+            meta,
+            active: is_active,
+        });
     }
 
     // 激活的排第一，然后按显示名
@@ -94,13 +96,55 @@ pub fn apply_theme(
 
     // 同步 ThemeState
     {
-        let mut active = theme_state.active.lock().map_err(|e| AppError::Db(e.to_string()).to_frontend())?;
+        let mut active = theme_state
+            .active
+            .lock()
+            .map_err(|e| AppError::Db(e.to_string()).to_frontend())?;
         *active = name.clone();
     }
 
     // 通知前端主题已切换
     let _ = app.emit("theme://changed", &name);
     Ok(())
+}
+
+/// 计算 zip 条目相对主题目录的路径
+///
+/// 返回 `Ok(None)` 表示应跳过该条目（macOS 元数据、空路径）。
+/// 返回 `Err` 表示条目不安全：绝对路径、含 `..` 的路径遍历、Windows 盘符。
+fn safe_rel_path(theme_name: &str, entry_name: &str) -> Result<Option<String>, String> {
+    fn unsafe_path(p: &str) -> bool {
+        let first = p.split('/').next().unwrap_or("");
+        p.starts_with('/') || first.contains(':') || p.split('/').any(|c| c == "..")
+    }
+
+    let norm = entry_name.replace('\\', "/");
+
+    // Zip Slip 防护：绝对路径 / 路径遍历 / 盘符一律拒绝
+    if unsafe_path(&norm) {
+        return Err(format!("Unsafe path in zip entry: {entry_name}"));
+    }
+
+    // 跳过 macOS 元数据目录
+    if norm.contains("__MACOSX") || norm.ends_with(".DS_Store") {
+        return Ok(None);
+    }
+
+    // 去除 zip 内的顶层目录前缀（如果它等于主题名）
+    let rel_path = if norm.starts_with(&format!("{}/", theme_name)) {
+        norm[theme_name.len() + 1..].to_string()
+    } else {
+        norm
+    };
+
+    if rel_path.is_empty() {
+        return Ok(None);
+    }
+    // 去前缀后可能是绝对路径（如 `minimal//etc/passwd`）
+    if unsafe_path(&rel_path) {
+        return Err(format!("Unsafe path in zip entry: {entry_name}"));
+    }
+    Ok(Some(rel_path))
 }
 
 /// 从 zip 包导入主题
@@ -144,9 +188,8 @@ pub fn import_theme(
         }
     }
 
-    let theme_name = theme_name.ok_or_else(|| {
-        "Invalid theme package: theme.json not found in zip".to_string()
-    })?;
+    let theme_name = theme_name
+        .ok_or_else(|| "Invalid theme package: theme.json not found in zip".to_string())?;
 
     // 主题名仅允许字母数字、连字符、下划线，防止通过包名进行路径遍历
     let valid_name = !theme_name.is_empty()
@@ -171,33 +214,9 @@ pub fn import_theme(
     // 解压所有文件
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
-        let entry_name = entry.name().replace('\\', "/");
-
-        // 跳过 macOS 元数据目录
-        if entry_name.contains("__MACOSX") || entry_name.ends_with(".DS_Store") {
+        let Some(rel_path) = safe_rel_path(&theme_name, entry.name())? else {
             continue;
-        }
-
-        // Zip Slip 防护：拒绝含 `..`、绝对路径等不安全条目
-        if entry.enclosed_name().is_none() {
-            return Err(format!("Unsafe path in zip entry: {entry_name}"));
-        }
-
-        // 去除 zip 内的顶层目录前缀（如果它等于主题名）
-        let rel_path = if entry_name.starts_with(&format!("{}/", theme_name)) {
-            entry_name[theme_name.len() + 1..].to_string()
-        } else if entry_name == "theme.json" {
-            entry_name
-        } else if entry_name.contains('/') {
-            // 取 theme.json 之后的路径作为相对路径
-            entry_name.to_string()
-        } else {
-            entry_name
         };
-
-        if rel_path.is_empty() {
-            continue;
-        }
 
         let out_path = target_dir.join(&rel_path);
 
@@ -247,10 +266,7 @@ pub fn save_theme_settings(
 /// 复制源文件到 `<app_data_dir>/assets/logo-<ts>.<ext>`，
 /// 返回相对路径 "assets/logo-xxx.png"，前端通过 convertFileSrc 展示
 #[tauri::command]
-pub fn upload_logo(
-    app: AppHandle,
-    src_path: String,
-) -> Result<String, String> {
+pub fn upload_logo(app: AppHandle, src_path: String) -> Result<String, String> {
     use tauri::Manager;
     let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let assets_dir = app_data_dir.join("assets");
@@ -279,3 +295,79 @@ pub fn upload_logo(
 
 // tauri Emitter trait（仅 settings://changed 事件使用）
 use tauri::Emitter;
+
+#[cfg(test)]
+mod tests {
+    use super::safe_rel_path;
+
+    #[test]
+    fn strips_theme_name_prefix() {
+        assert_eq!(
+            safe_rel_path("minimal", "minimal/theme.json").unwrap(),
+            Some("theme.json".into())
+        );
+        assert_eq!(
+            safe_rel_path("minimal", "minimal/assets/style.css").unwrap(),
+            Some("assets/style.css".into())
+        );
+    }
+
+    #[test]
+    fn keeps_root_theme_json() {
+        assert_eq!(
+            safe_rel_path("minimal", "theme.json").unwrap(),
+            Some("theme.json".into())
+        );
+    }
+
+    #[test]
+    fn normalizes_backslashes() {
+        assert_eq!(
+            safe_rel_path("minimal", "minimal\\assets\\style.css").unwrap(),
+            Some("assets/style.css".into())
+        );
+    }
+
+    #[test]
+    fn skips_macos_metadata() {
+        assert_eq!(
+            safe_rel_path("minimal", "minimal/__MACOSX/._theme.json").unwrap(),
+            None
+        );
+        assert_eq!(safe_rel_path("minimal", "minimal/.DS_Store").unwrap(), None);
+    }
+
+    #[test]
+    fn skips_empty_entry_for_theme_dir_itself() {
+        assert_eq!(safe_rel_path("minimal", "minimal/").unwrap(), None);
+    }
+
+    #[test]
+    fn rejects_parent_traversal() {
+        let err = safe_rel_path("minimal", "../evil.html").unwrap_err();
+        assert!(err.contains("Unsafe path"), "{err}");
+        assert!(safe_rel_path("minimal", "minimal/../../evil.html").is_err());
+        assert!(safe_rel_path("minimal", "assets/../../../evil.html").is_err());
+    }
+
+    #[test]
+    fn rejects_absolute_path() {
+        assert!(safe_rel_path("minimal", "/etc/passwd").is_err());
+        assert!(safe_rel_path("minimal", "minimal//etc/passwd").is_err());
+    }
+
+    #[test]
+    fn rejects_windows_drive_path() {
+        assert!(safe_rel_path("minimal", "C:/Windows/system32/evil.dll").is_err());
+    }
+
+    #[test]
+    fn relative_entry_stays_inside_theme_dir() {
+        // 所有通过校验的条目 join 到主题目录后都不会逃逸
+        let target = std::path::Path::new("/themes/minimal");
+        for entry in ["minimal/theme.json", "minimal/a/b.css", "theme.json"] {
+            let rel = safe_rel_path("minimal", entry).unwrap().unwrap();
+            assert!(target.join(rel).starts_with(target), "{entry}");
+        }
+    }
+}

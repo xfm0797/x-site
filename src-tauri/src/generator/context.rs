@@ -3,9 +3,7 @@
 //! 这些结构会被 serde 序列化后传给 Tera，在模板中通过
 //! `{{ site.title }}` / `{{ post.title }}` / `{{ posts }}` 等方式访问。
 
-use crate::models::post::{
-    AdConfig, CommentsConfig, FriendLink, Post, SiteConfig,
-};
+use crate::models::post::{AdConfig, CommentsConfig, FriendLink, Post, SiteConfig};
 use serde::Serialize;
 
 /// 站点级上下文（每次渲染都注入）
@@ -203,10 +201,7 @@ fn plain_text_excerpt(markdown: &str, max_chars: usize) -> String {
         if line.starts_with('#') || line.starts_with("---") || line.starts_with("```") {
             continue;
         }
-        let stripped = line
-            .trim_start_matches('-')
-            .trim_start_matches('>')
-            .trim();
+        let stripped = line.trim_start_matches('-').trim_start_matches('>').trim();
         text.push_str(stripped);
         text.push(' ');
         if text.chars().count() >= max_chars {

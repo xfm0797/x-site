@@ -22,17 +22,15 @@ pub async fn deploy(
             } else {
                 ((current as f64 / total as f64) * 100.0) as u32
             };
-            let _ = self
-                .0
-                .emit(
-                    "deploy://progress",
-                    serde_json::json!({
-                        "current": current,
-                        "total": total,
-                        "percent": percent,
-                        "file": file,
-                    }),
-                );
+            let _ = self.0.emit(
+                "deploy://progress",
+                serde_json::json!({
+                    "current": current,
+                    "total": total,
+                    "percent": percent,
+                    "file": file,
+                }),
+            );
         }
     }
     let sink = TauriProgress(&app);

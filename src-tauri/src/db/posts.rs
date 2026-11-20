@@ -3,9 +3,9 @@
 //! 集中所有 SQL，消除 commands/posts.rs、generator/mod.rs、commands/theme.rs
 //! 里的行映射 / 查询拼装。commands 层只做参数校验和 command 边界适配。
 
+use super::DbState;
 use crate::error::{AppError, AppResult};
 use crate::models::post::{Post, PostMeta};
-use super::DbState;
 
 /// 加载全部文章元数据（不含正文，减少传输开销）
 pub fn load_all_meta(db: &DbState) -> AppResult<Vec<PostMeta>> {

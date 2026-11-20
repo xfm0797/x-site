@@ -19,7 +19,7 @@ pub mod render;
 use crate::db::{self, DbState};
 use crate::error::{AppError, AppResult};
 use crate::models::post::Post;
-use context::{SiteContext, build_post_context};
+use context::{build_post_context, SiteContext};
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::fs;
@@ -58,7 +58,11 @@ impl ProgressSink for NullProgress {
 /// - posts/tags/categories/page 目录下**未在 keep_slugs 中的 HTML** 会被删除
 /// - 顶层 managed files 每次都删（索引/归档/feed 等依赖文章列表，变化频繁）
 /// - assets 目录只在主题变更时清理（外部资源目录跳过，用户可能有自定义文件）
-fn clean_output(output_path: &Path, keep_slugs: &std::collections::HashSet<String>, theme_changed: bool) {
+fn clean_output(
+    output_path: &Path,
+    keep_slugs: &std::collections::HashSet<String>,
+    theme_changed: bool,
+) {
     let posts_dir = output_path.join("posts");
     if posts_dir.exists() {
         // 遍历 posts/*.html，删不在 keep_slugs 里的
@@ -217,13 +221,11 @@ pub fn generate(
     let theme_assets_dir = theme_dir.join("assets");
     let out_assets_dir = output_path.join("assets");
     if theme_assets_dir.exists() {
-        assets::copy_dir(&theme_assets_dir, &out_assets_dir)
-            .map_err(AppError::Io)?;
+        assets::copy_dir(&theme_assets_dir, &out_assets_dir).map_err(AppError::Io)?;
     }
     // 文章插图、Logo 等用户资源（app_data/assets/）一并复制，修复生成站图片 404
     if paths.user_assets_dir.exists() {
-        assets::copy_dir(&paths.user_assets_dir, &out_assets_dir)
-            .map_err(AppError::Io)?;
+        assets::copy_dir(&paths.user_assets_dir, &out_assets_dir).map_err(AppError::Io)?;
     }
 
     // ----------------------------------------------------------
@@ -271,9 +273,13 @@ pub fn generate(
     for res in results {
         let (slug, html_opt, post_id, hash) = res?;
         // 在外部闭包外安全地更新 next_state（rayon 的 par_iter 闭包不能做 FnMut）
-        next_state
-            .posts
-            .insert(post_id, PostHash { slug: slug.clone(), h: hash });
+        next_state.posts.insert(
+            post_id,
+            PostHash {
+                slug: slug.clone(),
+                h: hash,
+            },
+        );
         let file_path = posts_dir.join(format!("{}.html", slug));
         if let Some(html) = html_opt {
             fs::write(&file_path, html)?;
@@ -292,13 +298,7 @@ pub fn generate(
         let start = (page_num - 1) * per_page;
         let end = (start + per_page).min(posts.len());
         let page_posts = &posts[start..end];
-        let html = render::render_index_page(
-            &tera,
-            &site_ctx,
-            page_posts,
-            page_num,
-            total_pages,
-        )?;
+        let html = render::render_index_page(&tera, &site_ctx, page_posts, page_num, total_pages)?;
         if page_num == 1 {
             fs::write(output_path.join("index.html"), html)?;
         } else {
@@ -326,8 +326,7 @@ pub fn generate(
         }
     }
     for (tag, tag_posts) in &tags_map {
-        let html =
-            render::render_tag_page(&tera, &site_ctx, tag, tag_posts)?;
+        let html = render::render_tag_page(&tera, &site_ctx, tag, tag_posts)?;
         let filename = format!("{}.html", slugify(tag));
         fs::write(tags_dir.join(&filename), html)?;
     }
@@ -344,8 +343,7 @@ pub fn generate(
         }
     }
     for (cat, cat_posts) in &cats_map {
-        let html =
-            render::render_category_page(&tera, &site_ctx, cat, cat_posts)?;
+        let html = render::render_category_page(&tera, &site_ctx, cat, cat_posts)?;
         let filename = format!("{}.html", slugify(cat));
         fs::write(cats_dir.join(&filename), html)?;
     }
@@ -421,7 +419,7 @@ pub(crate) fn slugify(text: &str) -> String {
 mod tests {
     use super::*;
     use crate::models::post::{Post, SiteConfig};
-    use context::{ListItem, SiteContext, build_post_context};
+    use context::{build_post_context, ListItem, SiteContext};
 
     fn sample_post() -> Post {
         Post {
@@ -523,7 +521,11 @@ mod tests {
         let item = ListItem::from_post(&p);
         // 按行边界 break，长度略超 200 属正常（每行末尾加空格）
         assert!(item.excerpt.chars().count() >= 200);
-        assert!(item.excerpt.len() < 230, "excerpt 不应过长：{}", item.excerpt.len());
+        assert!(
+            item.excerpt.len() < 230,
+            "excerpt 不应过长：{}",
+            item.excerpt.len()
+        );
     }
 
     // --------------------------------------------------------
@@ -553,7 +555,10 @@ mod tests {
     fn render_markdown_code_block_has_class_language() {
         let html = render::render_markdown("```rust\nlet x = 1;\n```");
         // syntect 渲染后的 code block 应包含 language-rust class
-        assert!(html.contains("language-rust") || html.contains("rust"), "got: {html}");
+        assert!(
+            html.contains("language-rust") || html.contains("rust"),
+            "got: {html}"
+        );
     }
 
     // --------------------------------------------------------
@@ -719,13 +724,8 @@ mod integration_tests {
             user_assets_dir: user_assets.path().to_path_buf(),
         };
 
-        generate(
-            &paths,
-            &NullProgress,
-            &db,
-            output.path().to_str().unwrap(),
-        )
-        .expect("generate must succeed");
+        generate(&paths, &NullProgress, &db, output.path().to_str().unwrap())
+            .expect("generate must succeed");
 
         let out = output.path();
         for name in [
@@ -740,10 +740,7 @@ mod integration_tests {
         }
 
         // 主题 assets
-        assert!(
-            out.join("assets/style.css").exists(),
-            "主题 assets 未复制"
-        );
+        assert!(out.join("assets/style.css").exists(), "主题 assets 未复制");
 
         // 已发布文章 HTML
         let first = out.join("posts/first-post.html");
@@ -762,10 +759,7 @@ mod integration_tests {
         // 标签页（rust, web）和分类页（Tech）
         assert!(out.join("tags/rust.html").exists(), "tag rust 缺失");
         assert!(out.join("tags/web.html").exists(), "tag web 缺失");
-        assert!(
-            out.join("categories/tech.html").exists(),
-            "category 缺失"
-        );
+        assert!(out.join("categories/tech.html").exists(), "category 缺失");
     }
 
     #[test]
@@ -818,13 +812,8 @@ mod integration_tests {
             user_assets_dir: TempDir::new().unwrap().path().to_path_buf(),
         };
 
-        let err = generate(
-            &paths,
-            &NullProgress,
-            &db,
-            output.path().to_str().unwrap(),
-        )
-        .expect_err("duplicate slug must fail");
+        let err = generate(&paths, &NullProgress, &db, output.path().to_str().unwrap())
+            .expect_err("duplicate slug must fail");
         assert!(
             matches!(err, AppError::Validation(_)),
             "应为 Validation，实际: {err:?}"
@@ -853,8 +842,11 @@ mod integration_tests {
             )
             .unwrap();
             let cfg = SiteConfig {
-                title: "T".into(), author: "A".into(), url: "https://u".into(),
-                theme: "minimal".into(), ..Default::default()
+                title: "T".into(),
+                author: "A".into(),
+                url: "https://u".into(),
+                theme: "minimal".into(),
+                ..Default::default()
             };
             conn.execute(
                 "INSERT INTO site_config (key, value) VALUES (?1, ?2)",
@@ -899,7 +891,8 @@ mod integration_tests {
         // 删 p2
         {
             let conn = db.0.lock().unwrap();
-            conn.execute("DELETE FROM posts WHERE id = 'p2'", []).unwrap();
+            conn.execute("DELETE FROM posts WHERE id = 'p2'", [])
+                .unwrap();
         }
 
         // 第二次 generate
@@ -944,10 +937,7 @@ mod integration_tests {
         assert!(state_path.exists(), ".gen_state.json 必须存在");
         let state_json = std::fs::read_to_string(&state_path).unwrap();
         // 应有 theme + 1 个 published post 的哈希（draft 不进 state）
-        assert!(
-            state_json.contains("minimal"),
-            "state 应记录主题名"
-        );
+        assert!(state_json.contains("minimal"), "state 应记录主题名");
         assert!(
             state_json.contains("post-1"),
             "state 应记录 published post id"
@@ -960,9 +950,6 @@ mod integration_tests {
         // 第二次 generate（文章内容未变），state 文件应被更新
         generate(&paths, &NullProgress, &db, output.path().to_str().unwrap()).unwrap();
         let state_json2 = std::fs::read_to_string(&state_path).unwrap();
-        assert_eq!(
-            state_json, state_json2,
-            "内容未变 → state 不应变化"
-        );
+        assert_eq!(state_json, state_json2, "内容未变 → state 不应变化");
     }
 }

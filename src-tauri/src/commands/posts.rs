@@ -28,15 +28,10 @@ pub fn load_post(db: State<'_, db::DbState>, id: String) -> Result<Post, String>
 
 /// 删除文章，并清理其资源目录（assets/<post_id>/）
 #[tauri::command]
-pub fn delete_post(
-    app: AppHandle,
-    db: State<'_, db::DbState>,
-    id: String,
-) -> Result<(), String> {
+pub fn delete_post(app: AppHandle, db: State<'_, db::DbState>, id: String) -> Result<(), String> {
     validate_post_id(&id)?;
     // 文章不存在时不报错（幂等）
-    let deleted = db::posts::delete(&db, &id)
-        .map_err(|e: AppError| e.to_frontend())?;
+    let deleted = db::posts::delete(&db, &id).map_err(|e: AppError| e.to_frontend())?;
     if !deleted {
         return Ok(());
     }
@@ -80,11 +75,7 @@ pub fn save_post(db: State<'_, db::DbState>, post: Post) -> Result<Post, String>
 
 /// 把 src_path 指定的图片复制到 assets/<post_id>/ 下，返回可在 Markdown 引用的相对路径
 #[tauri::command]
-pub fn import_image(
-    app: AppHandle,
-    post_id: String,
-    src_path: String,
-) -> Result<String, String> {
+pub fn import_image(app: AppHandle, post_id: String, src_path: String) -> Result<String, String> {
     validate_post_id(&post_id)?;
     let app_data_dir = app
         .path()
@@ -92,7 +83,9 @@ pub fn import_image(
         .map_err(|e| AppError::Tauri(e.to_string()).to_frontend())?;
     let src = std::path::Path::new(&src_path);
     if !src.is_file() {
-        return Err(AppError::Validation(format!("Image file not found: {src_path}")).to_frontend());
+        return Err(
+            AppError::Validation(format!("Image file not found: {src_path}")).to_frontend(),
+        );
     }
     let ext = src
         .extension()
@@ -102,9 +95,7 @@ pub fn import_image(
     // 仅允许图片扩展名，避免把任意文件复制进站点资源目录
     const ALLOWED: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "svg", "ico"];
     if !ALLOWED.contains(&ext.as_str()) {
-        return Err(
-            AppError::Validation(format!("Unsupported image type: {ext}")).to_frontend()
-        );
+        return Err(AppError::Validation(format!("Unsupported image type: {ext}")).to_frontend());
     }
 
     // 生成不重复的文件名：时间戳 + 短随机

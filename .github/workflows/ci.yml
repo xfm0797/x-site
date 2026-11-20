@@ -43,7 +43,7 @@ jobs:
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 
       - name: clippy — lint as errors
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml --color never -- --deny warnings
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --color never -- --deny warnings
 
       - name: cargo test
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib

@@ -130,7 +130,9 @@ pub async fn deploy_netlify(
         }
     }
 
-    Ok(format!("Netlify: uploaded {total} files (deploy {deploy_id})"))
+    Ok(format!(
+        "Netlify: uploaded {total} files (deploy {deploy_id})"
+    ))
 }
 
 // ============================================================

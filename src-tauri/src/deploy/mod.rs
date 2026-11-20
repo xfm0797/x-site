@@ -31,7 +31,9 @@ pub async fn deploy(
         "git" => deploy_git(site_dir, config, progress).await,
         "netlify" => platform::deploy_netlify(site_dir, config, progress).await,
         "vercel" => platform::deploy_vercel(site_dir, config, progress).await,
-        other => Err(AppError::Validation(format!("Unknown deploy type: {other}"))),
+        other => Err(AppError::Validation(format!(
+            "Unknown deploy type: {other}"
+        ))),
     }
 }
 
@@ -72,7 +74,10 @@ async fn deploy_git(
     let repo = config
         .get("repo")
         .ok_or_else(|| AppError::Validation("Missing 'repo' URL in config".into()))?;
-    let branch = config.get("branch").map(|s| s.as_str()).unwrap_or("gh-pages");
+    let branch = config
+        .get("branch")
+        .map(|s| s.as_str())
+        .unwrap_or("gh-pages");
     let message = config
         .get("message")
         .map(|s| s.as_str())
@@ -88,17 +93,26 @@ async fn deploy_git(
     }
 
     // origin 已存在则更新 URL，否则添加，保证重复部署幂等
-    if run_git_optional(site_dir, &["remote", "get-url", "origin"]).await.is_ok() {
+    if run_git_optional(site_dir, &["remote", "get-url", "origin"])
+        .await
+        .is_ok()
+    {
         run_git(site_dir, &["remote", "set-url", "origin", repo]).await?;
     } else {
         run_git(site_dir, &["remote", "add", "origin", repo]).await?;
     }
 
     // 仓库级提交身份（仅在未配置时写入，不污染全局 git config）
-    if run_git_optional(site_dir, &["config", "user.name"]).await.is_err() {
+    if run_git_optional(site_dir, &["config", "user.name"])
+        .await
+        .is_err()
+    {
         run_git(site_dir, &["config", "user.name", "x-site"]).await?;
     }
-    if run_git_optional(site_dir, &["config", "user.email"]).await.is_err() {
+    if run_git_optional(site_dir, &["config", "user.email"])
+        .await
+        .is_err()
+    {
         run_git(site_dir, &["config", "user.email", "x-site@localhost"]).await?;
     }
 
@@ -141,7 +155,11 @@ async fn deploy_git(
     }
 
     if let Some(p) = progress {
-        p.emit(4, 6, format!("Pushing to {repo} branch {branch}...").as_str());
+        p.emit(
+            4,
+            6,
+            format!("Pushing to {repo} branch {branch}...").as_str(),
+        );
     }
     // 不使用 --force，避免覆盖远程历史；非快进推送时返回 git 原始错误
     run_git(site_dir, &["push", "-u", "origin", branch]).await?;

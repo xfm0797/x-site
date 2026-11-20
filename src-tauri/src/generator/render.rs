@@ -1,8 +1,7 @@
 //! Markdown → HTML 渲染 + Tera 模板加载与渲染
 
 use super::context::{
-    ArchiveContext, CategoryContext, IndexContext, LinksContext, ListItem,
-    SiteContext, TagContext,
+    ArchiveContext, CategoryContext, IndexContext, LinksContext, ListItem, SiteContext, TagContext,
 };
 use crate::models::post::Post;
 use pulldown_cmark::{html, Event, Options, Parser, Tag};
@@ -58,10 +57,7 @@ pub fn load_theme(theme_dir: &Path) -> Result<Tera, String> {
 ///
 /// name 是完整文件名（含 .tera 扩展名），如 "base.tera"、"archive.tera"，
 /// 与模板内 `{% extends "base.tera" %}` 及 render_template("post.tera") 调用保持一致。
-fn collect_tera_files(
-    dir: &Path,
-    out: &mut Vec<(String, String)>,
-) -> Result<(), String> {
+fn collect_tera_files(dir: &Path, out: &mut Vec<(String, String)>) -> Result<(), String> {
     if !dir.is_dir() {
         return Ok(());
     }
@@ -77,8 +73,7 @@ fn collect_tera_files(
                 .and_then(|s| s.to_str())
                 .unwrap_or("unknown.tera")
                 .to_string();
-            let content =
-                std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+            let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
             out.push((name, content));
         }
     }
@@ -97,12 +92,14 @@ fn load_embedded_theme() -> Result<Tera, String> {
         ("index", include_str!("../../themes/default/index.tera")),
         ("archive", include_str!("../../themes/default/archive.tera")),
         ("tag", include_str!("../../themes/default/tag.tera")),
-        ("category", include_str!("../../themes/default/category.tera")),
+        (
+            "category",
+            include_str!("../../themes/default/category.tera"),
+        ),
         ("links", include_str!("../../themes/default/links.tera")),
     ];
     for (name, content) in templates {
-        tera
-            .add_raw_template(&format!("{name}.tera"), content)
+        tera.add_raw_template(&format!("{name}.tera"), content)
             .map_err(|e| format!("load embedded template {name}: {e}"))?;
     }
     tera.autoescape_on(vec!["html", "tera"]);
@@ -186,15 +183,14 @@ fn highlight_code_blocks(html: &str) -> String {
                 // 解析 language 和 code 内容
                 let (lang, code) = parse_code_block(block);
                 let highlighted = if let Some(syntax) = find_syntax(&lang) {
-                    syntect::html::highlighted_html_for_string(
-                        &code,
-                        &SYNTAX_SET,
-                        syntax,
-                        &THEME,
-                    )
-                    .unwrap_or_else(|_| html_escape(&code))
+                    syntect::html::highlighted_html_for_string(&code, &SYNTAX_SET, syntax, &THEME)
+                        .unwrap_or_else(|_| html_escape(&code))
                 } else {
-                    format!("<pre><code class=\"language-{}\">{}</code></pre>", lang, html_escape(&code))
+                    format!(
+                        "<pre><code class=\"language-{}\">{}</code></pre>",
+                        lang,
+                        html_escape(&code)
+                    )
                 };
                 result.push_str(&highlighted);
                 rest = &after_start[end..];
@@ -214,15 +210,15 @@ fn parse_code_block(block: &str) -> (String, String) {
     let first_gt = block.find('>').unwrap_or(0);
     let after_class = &block[first_gt + 1..];
     let end_tag = "</code></pre>";
-    let content_end = after_class
-        .find(end_tag)
-        .unwrap_or(after_class.len());
+    let content_end = after_class.find(end_tag).unwrap_or(after_class.len());
     let inner = &after_class[..content_end];
 
     // 从 block 解析 language
     let lang = if let Some(start) = block.find("language-") {
         let after = &block[start + "language-".len()..];
-        let end = after.find(|c: char| ['"', ' '].contains(&c)).unwrap_or(after.len());
+        let end = after
+            .find(|c: char| ['"', ' '].contains(&c))
+            .unwrap_or(after.len());
         after[..end].to_string()
     } else {
         String::new()
@@ -266,8 +262,8 @@ pub fn render_template<T: serde::Serialize>(
     template: &str,
     ctx: &T,
 ) -> Result<String, String> {
-    let context = Context::from_serialize(ctx)
-        .map_err(|e| format!("build context for {template}: {e}"))?;
+    let context =
+        Context::from_serialize(ctx).map_err(|e| format!("build context for {template}: {e}"))?;
     tera.render(template, &context)
         .map_err(|e| format!("render {template}: {e}"))
 }
@@ -309,21 +305,14 @@ pub fn render_index_page(
     render_template(tera, "index.tera", &ctx)
 }
 
-pub fn render_archive(
-    tera: &Tera,
-    site: &SiteContext,
-    posts: &[Post],
-) -> Result<String, String> {
+pub fn render_archive(tera: &Tera, site: &SiteContext, posts: &[Post]) -> Result<String, String> {
     // 按年份分组
     use std::collections::BTreeMap;
     let mut groups: BTreeMap<String, Vec<ListItem>> = BTreeMap::new();
     for p in posts {
         // 从 ISO 时间取年份（前 4 位）
         let year = p.created_at.chars().take(4).collect::<String>();
-        groups
-            .entry(year)
-            .or_default()
-            .push(ListItem::from_post(p));
+        groups.entry(year).or_default().push(ListItem::from_post(p));
     }
     // BTreeMap 自动按 key 排序，但我们要年份降序
     let mut groups: Vec<(String, Vec<ListItem>)> = groups.into_iter().collect();
@@ -362,10 +351,7 @@ pub fn render_category_page(
     render_template(tera, "category.tera", &ctx)
 }
 
-pub fn render_links_page(
-    tera: &Tera,
-    site: &SiteContext,
-) -> Result<String, String> {
+pub fn render_links_page(tera: &Tera, site: &SiteContext) -> Result<String, String> {
     let ctx = LinksContext { site };
     render_template(tera, "links.tera", &ctx)
 }

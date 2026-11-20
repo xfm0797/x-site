@@ -1,5 +1,5 @@
-pub mod posts;
-pub mod generate;
 pub mod deploy;
-pub mod theme;
+pub mod generate;
+pub mod posts;
 pub mod preview;
+pub mod theme;

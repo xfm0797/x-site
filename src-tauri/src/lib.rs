@@ -94,8 +94,7 @@ pub fn run() {
 /// 把编译期内联的 default 主题释放到目标目录
 fn extract_default_theme(target: &std::path::Path) -> Result<(), String> {
     std::fs::create_dir_all(target).map_err(|e| e.to_string())?;
-    std::fs::create_dir_all(target.join("assets").join("css"))
-        .map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(target.join("assets").join("css")).map_err(|e| e.to_string())?;
 
     // theme.json
     std::fs::write(
@@ -109,9 +108,15 @@ fn extract_default_theme(target: &std::path::Path) -> Result<(), String> {
         ("base.tera", include_str!("../themes/default/base.tera")),
         ("post.tera", include_str!("../themes/default/post.tera")),
         ("index.tera", include_str!("../themes/default/index.tera")),
-        ("archive.tera", include_str!("../themes/default/archive.tera")),
+        (
+            "archive.tera",
+            include_str!("../themes/default/archive.tera"),
+        ),
         ("tag.tera", include_str!("../themes/default/tag.tera")),
-        ("category.tera", include_str!("../themes/default/category.tera")),
+        (
+            "category.tera",
+            include_str!("../themes/default/category.tera"),
+        ),
         ("links.tera", include_str!("../themes/default/links.tera")),
     ];
     for (name, content) in templates {
@@ -135,8 +140,7 @@ fn extract_default_theme(target: &std::path::Path) -> Result<(), String> {
 /// 把编译期内联的 business 主题释放到目标目录（产品展示型企业主题）
 fn extract_business_theme(target: &std::path::Path) -> Result<(), String> {
     std::fs::create_dir_all(target).map_err(|e| e.to_string())?;
-    std::fs::create_dir_all(target.join("assets").join("css"))
-        .map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(target.join("assets").join("css")).map_err(|e| e.to_string())?;
 
     // theme.json
     std::fs::write(
@@ -150,11 +154,20 @@ fn extract_business_theme(target: &std::path::Path) -> Result<(), String> {
         ("base.tera", include_str!("../themes/business/base.tera")),
         ("post.tera", include_str!("../themes/business/post.tera")),
         ("index.tera", include_str!("../themes/business/index.tera")),
-        ("archive.tera", include_str!("../themes/business/archive.tera")),
+        (
+            "archive.tera",
+            include_str!("../themes/business/archive.tera"),
+        ),
         ("tag.tera", include_str!("../themes/business/tag.tera")),
-        ("category.tera", include_str!("../themes/business/category.tera")),
+        (
+            "category.tera",
+            include_str!("../themes/business/category.tera"),
+        ),
         ("links.tera", include_str!("../themes/business/links.tera")),
-        ("product.tera", include_str!("../themes/business/product.tera")),
+        (
+            "product.tera",
+            include_str!("../themes/business/product.tera"),
+        ),
     ];
     for (name, content) in templates {
         std::fs::write(target.join(name), content).map_err(|e| e.to_string())?;

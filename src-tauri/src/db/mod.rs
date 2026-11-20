@@ -57,4 +57,3 @@ pub fn init(db_path: &str) -> Result<DbState, AppError> {
     }
     Ok(DbState(Mutex::new(conn)))
 }
-
