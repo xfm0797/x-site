@@ -208,8 +208,9 @@ npm run build
 | 检查项 | 目标 | 实测 |
 |---|---|---|
 | 裸二进制 | < 13 MB | 12.92 MB ✅ |
-| 前端 dist | < 5 MB | ~3.8 MB ✅ |
-| CodeMirror chunk (gzip) | < 600 KB | 568 KB ✅ |
+| 前端 dist | < 5 MB | ~3.3 MB ✅ |
+| CodeMirror chunk (gzip) | < 600 KB | 206 KB ✅ |
+| Markdown 高亮 chunk (gzip) | < 150 KB | 96 KB ✅ |
 | MSI 安装包 | < 15 MB | 待 Release 验证 |
 
 **优化措施**：
@@ -218,6 +219,7 @@ npm run build
 - Tauri features 精简: `tauri = { features = [] }`（未开 devtools）
 - `syntect` 关闭默认全量语法定义: `default-features = false, features = ["default-fancy"]`
 - 前端 `manualChunks` 分块 + `esbuild` minify + 移除 `console.log`
+- highlight.js 改用 `lib/common`（36 种常用语言），编辑器语法包按需动态加载，markdown / codemirror chunk 体积分别下降约 73% / 64%
 - `vite-plugin-compression` 生成 `.gz` + `.br`
 
 ---

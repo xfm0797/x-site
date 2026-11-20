@@ -11,7 +11,8 @@
 - **输出目录持久化**：新增 `get_output_dir` / `save_output_dir` 命令与 `SiteConfig.output_dir` 字段，预览/同步页共享目录并支持原生目录选择。
 - **同步进度可视化**：同步页监听 `generate://progress` 与 `deploy://progress`，展示生成及当前部署目标的实时进度。
 - **删除二次确认**：菜单项与部署目标删除前弹出确认。
-- **前端测试**：新增 Vitest，覆盖 post store 自动保存状态机。
+- **前端测试**：新增 Vitest，覆盖 post store 自动保存状态机；CI 前端流水线加入 `npm test` 门禁。
+- **前端体积优化**：highlight.js 改为 `lib/common`（36 种常用语言），CodeMirror 语言包从主 chunk 拆出按需加载；markdown chunk gzip 353 KB → 96 KB，codemirror chunk gzip 568 KB → 206 KB，构建不再出现大 chunk 警告。
 
 ### Changed
 
