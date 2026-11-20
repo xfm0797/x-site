@@ -49,10 +49,10 @@ jobs:
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib
 
   # ============================================================
-  # 前端：类型 + 构建（确保 dist 可产出）
+  # 前端：类型 + 单测 + 构建（确保 dist 可产出）
   # ============================================================
   frontend:
-    name: Vue (tsc / build)
+    name: Vue (tsc / test / build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -65,4 +65,6 @@ jobs:
 
       - run: npm ci --no-audit --no-fund
       - run: ./node_modules/.bin/vue-tsc --noEmit
+      - name: vitest — unit tests
+        run: npm test
       - run: npm run build
