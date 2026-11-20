@@ -22,6 +22,12 @@ export default {
     delete: "刪除",
     deleteConfirm: "確定刪除文章「{title}」嗎？該操作無法復原。",
     untitled: "(未命名)",
+    searchPlaceholder: "搜尋標題、標籤、分類",
+    filterAll: "全部",
+    sortUpdated: "最近更新",
+    sortCreated: "建立時間",
+    sortTitle: "標題",
+    noMatch: "沒有符合的文章",
   },
   editor: {
     toolbar: {

@@ -18,6 +18,7 @@
 - **自动保存** — 编辑停顿 1s 防抖写入 SQLite，状态栏显示「已保存」
 - **拖拽图片** — 从系统拖入图片自动复制到资源目录并插入 Markdown 相对路径
 - **元数据面板** — 标题、Slug、分类、标签、封面图、发布状态
+- **搜索与筛选** — 首页按标题/Slug/标签/分类搜索，按发布状态过滤，支持更新时间/创建时间/标题排序
 
 ### 站点生成
 - **Tera 模板引擎** — 支持模板继承、变量插值、过滤器
@@ -53,7 +54,10 @@
 
 ### 部署
 - **Local Copy** — 复制 `output/` 到本地目标路径
-- **Git Push** — 推送到 GitHub Pages / 任意 Git 仓库（自定义分支）
+- **Git Push** — 推送到 GitHub Pages / 任意 Git 仓库（自定义分支；HEAD 未变化时自动跳过推送）
+- **Netlify** — 通过 Netlify API 部署（需 `token` + `site_id`）
+- **Vercel** — 通过 Vercel API 部署（需 `token` + `project_id`，可选 `team_id`）
+- **多目标同步** — 「同步」页可依次执行生成 + 部署全部目标，进度通过 `deploy://progress` 事件推送
 
 ### 本地预览
 - Rust 端 `axum` 静态文件服务，端口自动扫描（40000+）
@@ -279,13 +283,17 @@ git push origin v0.1.0
 | Command | 说明 |
 |---|---|
 | `load_posts` | 查询所有文章元数据 |
+| `load_post` | 按 id 加载完整文章（含正文） |
+| `delete_post` | 删除文章并清理其资源目录 |
 | `save_post` | UPSERT 保存文章 |
 | `import_image` | 复制图片到资源目录，返回相对路径 |
 | `generate_site` | 生成静态站点（事件推送进度） |
-| `deploy` | 部署到本地路径或 Git 仓库 |
+| `deploy` | 部署到 Local / Git / Netlify / Vercel（事件推送进度） |
 | `list_themes` | 列出所有主题 |
 | `apply_theme` | 切换当前主题 |
 | `import_theme` | 导入 ZIP 主题包 |
+| `get_theme_settings` / `save_theme_settings` | 读取 / 保存站点配置 |
+| `upload_logo` | 上传 Logo 到 assets 目录 |
 | `start_preview` | 启动本地 HTTP 预览服务 |
 | `stop_preview` | 停止预览服务 |
 

@@ -24,6 +24,12 @@ export default {
     delete: "删除",
     deleteConfirm: "确定删除文章「{title}」吗？该操作不可恢复。",
     untitled: "(未命名)",
+    searchPlaceholder: "搜索标题、标签、分类",
+    filterAll: "全部",
+    sortUpdated: "最近更新",
+    sortCreated: "创建时间",
+    sortTitle: "标题",
+    noMatch: "没有匹配的文章",
   },
   // 编辑器
   editor: {

@@ -22,6 +22,12 @@ export default {
     delete: "Delete",
     deleteConfirm: "Delete post \"{title}\"? This cannot be undone.",
     untitled: "(Untitled)",
+    searchPlaceholder: "Search title, tag or category",
+    filterAll: "All",
+    sortUpdated: "Recently updated",
+    sortCreated: "Created",
+    sortTitle: "Title",
+    noMatch: "No matching posts",
   },
   editor: {
     toolbar: {
