@@ -4,7 +4,8 @@
  *
  * 流程：generateSite → 遍历 deploy_targets → 逐个 deploy
  */
-import { ref, onMounted } from "vue";
+import { ref, onMounted, onBeforeUnmount } from "vue";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   getThemeSettings,
   generateSite,
@@ -33,8 +34,27 @@ interface SyncResult {
 }
 const results = ref<SyncResult[]>([]);
 const generatePercent = ref(0);
+const deployPercent = ref(0);
+const deployStep = ref("");
+let unlisten: UnlistenFn[] = [];
+
+interface ProgressPayload {
+  current: number;
+  total: number;
+  percent: number;
+  file: string;
+}
 
 onMounted(async () => {
+  unlisten = await Promise.all([
+    listen<ProgressPayload>("generate://progress", (e) => {
+      generatePercent.value = e.payload.percent;
+    }),
+    listen<ProgressPayload>("deploy://progress", (e) => {
+      deployPercent.value = e.payload.percent;
+      deployStep.value = e.payload.file;
+    }),
+  ]);
   try {
     const cfg = await getThemeSettings();
     targets.value = cfg.deploy_targets || [];
@@ -47,6 +67,10 @@ onMounted(async () => {
     /* 浏览器开发环境无后端，忽略 */
   }
   loading.value = false;
+});
+
+onBeforeUnmount(() => {
+  unlisten.forEach((fn) => fn());
 });
 
 /** 持久化输出目录（失败不阻断同步） */
@@ -102,6 +126,8 @@ async function startSync() {
     for (let i = 0; i < targets.value.length; i++) {
       const tgt = targets.value[i];
       results.value[i].status = "deploying";
+      deployPercent.value = 0;
+      deployStep.value = "";
       message.value = t("sync.deploying", { name: tgt.name, index: i + 1, total: targets.value.length });
       try {
         const res = await deploy(outputDir.value, tgt.config);
@@ -157,6 +183,12 @@ async function startSync() {
             {{ results[i] ? t("sync." + results[i].status) : "" }}
           </span>
           <div v-if="results[i]?.result" class="target-result">{{ results[i].result }}</div>
+          <div v-if="results[i]?.status === 'deploying'" class="target-progress">
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: deployPercent + '%' }"></div>
+            </div>
+            <span class="step">{{ deployPercent }}%<template v-if="deployStep"> · {{ deployStep }}</template></span>
+          </div>
         </div>
       </section>
 
@@ -233,6 +265,8 @@ input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; b
 .progress-wrap { margin: 16px 0; }
 .progress-bar { width: 100%; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; }
 .progress-fill { height: 100%; background: linear-gradient(90deg, #4a9eff, #2563eb); transition: width 0.3s ease; }
+.target-progress { width: 100%; margin-top: 6px; }
+.target-progress .step { display: block; margin-top: 3px; font-size: 11px; color: #6b7280; word-break: break-all; }
 
 .btn-primary { padding: 10px 24px; background: #4a9eff; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
