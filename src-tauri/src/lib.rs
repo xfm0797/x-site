@@ -7,9 +7,20 @@ mod models;
 
 use models::theme::{PreviewState, ThemeState};
 use tauri::Manager;
+use tracing_subscriber::EnvFilter;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // 初始化全局 tracing subscriber
+    // - 默认 INFO 级，只输出到 stderr
+    // - 设 RUST_LOG=debug|trace|warn 可覆盖（如 RUST_LOG=generator=debug,info）
+    // - 生产日志建议后续加 file writer（tracing-appender）
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
+        .try_init();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())

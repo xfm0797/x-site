@@ -94,12 +94,15 @@ impl<T> From<std::sync::PoisonError<T>> for AppError {
 impl AppError {
     /// 把 AppError 转成前端可展示的字符串
     /// Tauri command 的返回契约仍是 Result<T, String>
+    /// 同时用 tracing 记录完整错误上下文（便于排障）
     pub fn to_frontend(&self) -> String {
         // Validation / Message 已经是用户可读的 message
-        match self {
-            Self::Validation(msg) | Self::Message(msg) => msg.clone(),
-            other => other.to_string(),
-        }
+        let (label, msg) = match self {
+            Self::Validation(msg) | Self::Message(msg) => ("user", msg.clone()),
+            other => ("internal", other.to_string()),
+        };
+        tracing::error!(kind = label, err = %self, "AppError");
+        msg
     }
 }
 

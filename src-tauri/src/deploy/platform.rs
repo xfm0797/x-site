@@ -14,6 +14,8 @@ use flate2::Compression;
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 
+use super::ProgressSink;
+
 /// 收集目录下所有文件的相对路径与绝对路径
 fn collect_files(site_dir: &Path) -> Result<Vec<(String, PathBuf)>, String> {
     let mut files = Vec::new();
@@ -55,6 +57,7 @@ struct NetlifyDeploy {
 pub async fn deploy_netlify(
     site_dir: &str,
     config: &HashMap<String, String>,
+    progress: Option<&dyn ProgressSink>,
 ) -> Result<String, String> {
     let token = config.get("token").ok_or("Missing 'token' in netlify config")?;
     let site_id = config.get("site_id").ok_or("Missing 'site_id' in netlify config")?;
@@ -89,6 +92,9 @@ pub async fn deploy_netlify(
     let total = files.len();
 
     for (i, (rel_path, abs_path)) in files.iter().enumerate() {
+        if let Some(p) = progress {
+            p.emit(i + 1, total, rel_path.as_str());
+        }
         let raw = fs::read(abs_path).map_err(|e| format!("read {}: {e}", rel_path))?;
         // gzip 压缩
         let mut encoder = GzEncoder::new(&raw[..], Compression::default());
@@ -147,6 +153,7 @@ struct VercelDeployment {
 pub async fn deploy_vercel(
     site_dir: &str,
     config: &HashMap<String, String>,
+    progress: Option<&dyn ProgressSink>,
 ) -> Result<String, String> {
     let token = config.get("token").ok_or("Missing 'token' in vercel config")?;
     let project_id = config
@@ -171,6 +178,9 @@ pub async fn deploy_vercel(
 
     // 1. 逐文件上传到 /v2/files（Vercel 按内容哈希去重）
     for (i, (rel_path, abs_path)) in files.iter().enumerate() {
+        if let Some(p) = progress {
+            p.emit(i + 1, total, rel_path.as_str());
+        }
         let raw = fs::read(abs_path).map_err(|e| format!("read {}: {e}", rel_path))?;
 
         let resp = client

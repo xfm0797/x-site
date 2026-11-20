@@ -4,28 +4,43 @@ use std::path::Path;
 
 pub mod platform;
 
+/// 复用 generator 的进度 trait，deploy 模块也能以 trait 对象接入
+pub use crate::generator::ProgressSink;
+
 /// 部署静态站点，根据 config.type 选择部署方式
 /// - local: 复制到本地目录
 /// - git: 推送到 Git 远程仓库（GitHub Pages 等）
 /// - netlify: 通过 Netlify REST API 上传
 /// - vercel: 通过 Vercel REST API 上传
+///
+/// `progress` 可选：传入 trait 对象即可通过 `deploy://progress` 事件推送当前步骤，
+/// 不传时仍能正常部署（静默模式，适用于 CLI 或单元测试）。
 pub async fn deploy(
     site_dir: &str,
     config: &HashMap<String, String>,
+    progress: Option<&dyn ProgressSink>,
 ) -> Result<String, String> {
     let deploy_type = config.get("type").map(|s| s.as_str()).unwrap_or("local");
 
+    if let Some(p) = progress {
+        p.emit(0, 1, &format!("Starting {deploy_type} deploy..."));
+    }
+
     match deploy_type {
-        "local" => deploy_local(site_dir, config),
-        "git" => deploy_git(site_dir, config).await,
-        "netlify" => platform::deploy_netlify(site_dir, config).await,
-        "vercel" => platform::deploy_vercel(site_dir, config).await,
+        "local" => deploy_local(site_dir, config, progress),
+        "git" => deploy_git(site_dir, config, progress).await,
+        "netlify" => platform::deploy_netlify(site_dir, config, progress).await,
+        "vercel" => platform::deploy_vercel(site_dir, config, progress).await,
         other => Err(format!("Unknown deploy type: {}", other)),
     }
 }
 
 /// 本地部署：将 site_dir 复制到 config.target 路径
-fn deploy_local(site_dir: &str, config: &HashMap<String, String>) -> Result<String, String> {
+fn deploy_local(
+    site_dir: &str,
+    config: &HashMap<String, String>,
+    progress: Option<&dyn ProgressSink>,
+) -> Result<String, String> {
     let target = config.get("target").ok_or("Missing 'target' path in config")?;
     let source = Path::new(site_dir);
     let target_path = Path::new(target);
@@ -34,15 +49,29 @@ fn deploy_local(site_dir: &str, config: &HashMap<String, String>) -> Result<Stri
         return Err(format!("Source directory not found: {}", site_dir));
     }
 
+    if let Some(p) = progress {
+        p.emit(0, 1, format!("Copying to {target}...").as_str());
+    }
     copy_dir_recursive(source, target_path)?;
+    if let Some(p) = progress {
+        p.emit(1, 1, "Done");
+    }
     Ok(format!("Deployed to {}", target))
 }
 
 /// Git 部署：初始化 git 仓库并推送到远程（可重复执行）
-async fn deploy_git(site_dir: &str, config: &HashMap<String, String>) -> Result<String, String> {
+async fn deploy_git(
+    site_dir: &str,
+    config: &HashMap<String, String>,
+    progress: Option<&dyn ProgressSink>,
+) -> Result<String, String> {
     let repo = config.get("repo").ok_or("Missing 'repo' URL in config")?;
     let branch = config.get("branch").map(|s| s.as_str()).unwrap_or("gh-pages");
     let message = config.get("message").map(|s| s.as_str()).unwrap_or("Deploy site");
+
+    if let Some(p) = progress {
+        p.emit(0, 5, "Preparing git repository...");
+    }
 
     // 仅首次部署初始化仓库
     if !Path::new(site_dir).join(".git").exists() {
@@ -64,18 +93,35 @@ async fn deploy_git(site_dir: &str, config: &HashMap<String, String>) -> Result<
         run_git(site_dir, &["config", "user.email", "x-site@localhost"]).await?;
     }
 
+    if let Some(p) = progress {
+        p.emit(1, 5, "Staging files...");
+    }
     run_git(site_dir, &["add", "."]).await?;
 
     // commit：工作区无改动时跳过，其余错误如实上报
     match run_git(site_dir, &["commit", "-m", message]).await {
-        Ok(_) => {}
-        Err(e) if e.contains("nothing to commit") => {}
+        Ok(_) => {
+            if let Some(p) = progress {
+                p.emit(2, 5, "Committed changes");
+            }
+        }
+        Err(e) if e.contains("nothing to commit") => {
+            if let Some(p) = progress {
+                p.emit(2, 5, "No changes to commit");
+            }
+        }
         Err(e) => return Err(e),
     }
 
+    if let Some(p) = progress {
+        p.emit(3, 5, format!("Pushing to {repo} branch {branch}...").as_str());
+    }
     // 不使用 --force，避免覆盖远程历史；非快进推送时返回 git 原始错误
     run_git(site_dir, &["push", "-u", "origin", branch]).await?;
 
+    if let Some(p) = progress {
+        p.emit(5, 5, "Done");
+    }
     Ok(format!("Deployed to {} on branch {}", repo, branch))
 }
 
